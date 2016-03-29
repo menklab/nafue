@@ -34,7 +34,7 @@ func getJson(url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func getFileByUrl(tempFile string, url string) error {
+func getFileBodyByUrl(tempFile string, url string) error {
 
 	// Create the file
 	out, err := os.Create(tempFile)
