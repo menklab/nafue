@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"os"
 	"crypto/sha1"
-	//"hash"
 )
 
 
@@ -22,6 +21,9 @@ const (
 	ITERATIONS int = 1000
 	KEY_LENGTH int = 32
 	SALT_LENGTH int = 32
+	FILE_SIZE_LIMIT int64 = 50 // 50 mb
+	NAFUE_TEMP_FILE string = ".tmp.nafue"
+
 )
 
 func GetTempDir() string {

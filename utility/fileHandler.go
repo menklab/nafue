@@ -33,7 +33,7 @@ func GetFile(url string) {
 func PutFile(file string, password string) {
 
 	// encrypt file with password
-	Encrypt(password)
+	Encrypt(file, password)
 	// mode=ccm, cipher=aes, tag=128, key=256, iterations=1000
 }
 
