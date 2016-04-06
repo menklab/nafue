@@ -6,12 +6,6 @@ import (
 	"os"
 	"regexp"
 	"nafue/config"
-	"path/filepath"
-	//b64 "encoding/base64"
-	"encoding/json"
-"net/http"
-	"bytes"
-	"io/ioutil"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -26,24 +20,38 @@ func GetFile(url string) {
 	getFileHeader(aUrl, &fileHeader)
 
 	// download file body
-	getFileBody(&fileHeader)
+	secureData := getFileBodyByUrl(fileHeader.DownloadUrl)
+	log.Println("File Body: ", *secureData)
 
+	// ask for password
+	pass := promptPassword()
+
+	// decrypt file with password
+	fileBody := Decrypt(&fileHeader, pass, secureData)
+	log.Println("Decrypted Body: ", fileBody)
 }
 
-func PutFile(file string, password string) {
+func PutFile(file string) string{
+
+	// ask for password
+	pass := promptPassword()
 
 	// encrypt file with password
-	Encrypt(file, password)
-	// mode=ccm, cipher=aes, tag=128, key=256, iterations=1000
+	secureData, fileHeader := Encrypt(file, pass)
+
+	// put file header info
+	putFileHeader(config.API_FILE_URL, fileHeader)
+
+	// post body data
+	putFileBody(fileHeader.UploadUrl, secureData)
+
+	// provide share link
+	shareLink := config.SHARE_LINK + fileHeader.ShortUrl
+	log.Println("Share Link: ", shareLink)
+	return shareLink
+
 }
 
-func appifyUrl(url string) string {
-	fileId := fileIdRegex.FindStringSubmatch(url)[1]
-	// use fileId to get file from api
-	appifiedUrl := config.API_URL + "/files/" + fileId
-	log.Println("appifiedUrl: ", appifiedUrl)
-	return appifiedUrl
-}
 
 func getFileHeader(url string, fileHeader *display.FileDisplay){
 	err := getJson(url, &fileHeader)
@@ -66,39 +74,3 @@ func getFileHeader(url string, fileHeader *display.FileDisplay){
 	//}
 }
 
-func getFileBody(fileHeader *display.FileDisplay) {
-	err := getFileBodyByUrl(filepath.Join(config.GetTempDir(), fileHeader.ShortUrl), fileHeader.DownloadUrl)
-	if err != nil {
-		log.Println("Error retrieving file body: ", err.Error())
-		os.Exit(1)
-	}
-	return
-}
-
-func putFileHeader(url string, fileHeader *display.FileDisplay) {
-	// create json body
-	body, err := json.Marshal(&fileHeader)
-
-	// create request
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-
-	// make client and do request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println("Error posting fileheader data: ", err.Error())
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-
-	log.Println("response Status:", resp.Status)
-	log.Println("response Headers:", resp.Header)
-	rBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("Error in service response: ", err.Error())
-		os.Exit(1)
-	}
-
-	log.Println("response Body:", rBody)
-}

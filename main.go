@@ -5,9 +5,6 @@ import (
 	"github.com/codegangsta/cli"
 	"nafue/utility"
 	"log"
-	"golang.org/x/crypto/ssh/terminal"
-	"fmt"
-	"syscall"
 )
 // todo add delete temp function
 func main() {
@@ -21,9 +18,13 @@ func main() {
 		{
 			Name:      "get",
 			Usage:     "get [file]",
-			ArgsUsage: "blah blah",
 			Action: func(c *cli.Context) {
 				url := c.Args().First()
+				if url == "" {
+					log.Println("You must enter a url")
+					os.Exit(1)
+				}
+				// get file
 				utility.GetFile(url)
 			},
 		},
@@ -36,16 +37,8 @@ func main() {
 					log.Println("You must enter a file")
 					os.Exit(1)
 				}
-				// ask for password
-				fmt.Print("Enter Password: ")
-				bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
-				if err != nil {
-					log.Println("Error reading password: ", err.Error())
-				}
-				password := string(bytePassword)
-				fmt.Println()
 				// share file
-				utility.PutFile(file, password)
+				utility.PutFile(file)
 			},
 		},
 

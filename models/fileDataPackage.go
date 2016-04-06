@@ -4,8 +4,7 @@ import "fmt"
 
 type FileDataPackage struct {
 	Name    string    `json:"name,omitempty"`
-	Type    string `json:"type,omitempty"`
-	Content string `json:"content,omitempty"`
+	Content []byte `json:"content,omitempty"`
 }
 
 func (self *FileDataPackage) ToString() string {

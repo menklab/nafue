@@ -9,6 +9,7 @@ import (
 
 var (
 	API_URL string = API_PROTOCOL + "://" + API_HOST + ":" + API_PORT + "/" + API_BASE
+	API_FILE_URL string = API_URL + "/files"
 	HASH_TYPE = sha1.New
 
 )
@@ -18,6 +19,7 @@ const (
 	API_PORT string = "9090"
 	API_BASE string = "api"
 	TEMP_DIR string = "nafue"
+	SHARE_LINK string = "http://localhost:8080/file/"
 	ITERATIONS int = 1000
 	KEY_LENGTH int = 32
 	SALT_LENGTH int = 32
