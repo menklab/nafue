@@ -7,9 +7,6 @@ import (
 	"crypto/rand"
 	"log"
 	"os"
-	"errors"
-	"io/ioutil"
-	"encoding/base64"
 	"crypto/aes"
 	"crypto/cipher"
 	"nafue/models"
@@ -20,122 +17,75 @@ import (
 
 var ()
 
-func Decrypt (fileDisplay *display.FileDisplay, password string, secureData *string) *string{
-
-	// get aData
-	aData, err := base64.StdEncoding.DecodeString(fileDisplay.AData)
-	checkError(err)
-	log.Println("aData: ", aData)
-
-	// get salt
-	salt, err := base64.StdEncoding.DecodeString(fileDisplay.Salt)
-	checkError(err)
-	log.Println("salt: ", salt)
-
-	// get nonce
-	nonce, err := base64.StdEncoding.DecodeString(fileDisplay.IV)
-	checkError(err)
-	log.Println("salt: ", nonce)
+func Decrypt (fileHeader *display.FileHeaderDisplay, password string, secureData *[]byte) *models.FileBody{
 
 	// get key
-	key := getPbkdf2(password, salt)
-	log.Println("key: ", key)
+	key := getPbkdf2(password, fileHeader.Salt)
 
 	// decrypt
-	decrypt(secureData, aData, nonce, key)
+	data := decrypt(secureData, fileHeader.AData, fileHeader.IV, key)
 
-	return nil
+	// use data to create a fileBody
+	var fileBody = models.FileBody{}
+	err := json.Unmarshal(*data, &fileBody)
+	checkError(err)
+
+	return &fileBody
 }
 
-func Encrypt(file string, password string) (*string, *display.FileDisplay) {
+func Encrypt(fileBodyPackage *models.FileBody, password string) (*[]byte, *display.FileHeaderDisplay) {
 	// create aData
 	aData := makeAData()
-	log.Println("aData: ", aData)
 
 	// create salt
 	salt := makeSalt()
-	log.Println("salt: ", salt)
 
 	// create nonce
 	nonce := makeNonce()
-	log.Println("nonce: ", nonce)
 
 	// generate key
 	key := getPbkdf2(password, salt)
-	log.Println("key: ", key)
 
-	// encrypt
-	return encrypt(file, aData, nonce, key), &display.FileDisplay{
-		Salt: base64.StdEncoding.EncodeToString(salt),
+	// create file display
+	fileDisplay := display.FileHeaderDisplay{
+		Salt: salt,
 		// Todo update IV to nonce once api and ui is updated
-		IV: base64.StdEncoding.EncodeToString(nonce),
-		AData: base64.StdEncoding.EncodeToString(aData),
+		IV: nonce,
+		AData: aData,
 	}
 
+	// marshal data for encryption
+	data, err := json.Marshal(*fileBodyPackage)
+	checkError(err)
 
-
+	// encrypt
+	return encrypt(&data, aData, nonce, key), &fileDisplay
 }
 
-func decrypt(secureData *string, aData []byte, nonce []byte, key []byte) *string {
+func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) *[]byte {
 
-	// decode from storage
-	decodedData, err := base64.StdEncoding.DecodeString(*secureData)
-	checkError(err)
-	log.Println("decoded: ", decodedData)
-
-	// decrypt data
 	//create cipher
 	block, err := aes.NewCipher(key)
 
 	// decrypt
 	gcm, err := cipher.NewGCM(block)
-	decryptedData, err := gcm.Open(nil, nonce, []byte(*secureData), aData)
+	data, err := gcm.Open(nil, nonce, *secureData, aData)
 	checkError(err)
-	log.Println("Decrypted Data: ", decryptedData)
 
-	return nil
+	return &data
 }
 
-func encrypt(file string, aData []byte, nonce []byte, key []byte) *string{
-
-	// verify file is under 50mb
-	fileInfo, err := os.Stat(file)
-	checkError(err)
-	fileSize := fileInfo.Size()
-	if fileSize > (config.FILE_SIZE_LIMIT * 1024 * 1024) {
-		panic(errors.New("File is larger than " + string(config.FILE_SIZE_LIMIT) + "mb."))
-	}
-
-	// get file type and name
-	fileName := fileInfo.Name()
-
-	// read file
-	fileBytes, err := ioutil.ReadFile(file)
-	checkError(err)
-
-	// create file data package
-	fdp := models.FileDataPackage{
-		Name: fileName,
-		Content: fileBytes,
-	}
-	// todo probably need to encode this data for it to work properl
-	data, err := json.Marshal(fdp)
-	checkError(err)
-	log.Println("Data: ", string(data))
+func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte{
 
 	 //create cipher
 	block, err := aes.NewCipher(key)
+	checkError(err)
 
 	// encrypt
 	gcm, err := cipher.NewGCM(block)
-	ciphertext := gcm.Seal(nil, nonce, []byte(data), aData)
-	log.Println("Cipher: ", ciphertext)
+	secureData := gcm.Seal(nil, nonce, *data, aData)
 
-	// encode for storage
-	encodedData := base64.StdEncoding.EncodeToString(data)
-	log.Println("encodedData: ", encodedData)
-	return &encodedData
-
+	return &secureData
 }
 
 func getPbkdf2(password string, salt []byte) []byte {
@@ -162,7 +112,7 @@ func makeNonce() []byte {
 }
 
 func makeAData() []byte {
-	aData := make([]byte, 32)
+	aData := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, aData); err != nil {
 		panic(err.Error())
 	}

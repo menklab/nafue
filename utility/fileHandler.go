@@ -6,29 +6,31 @@ import (
 	"os"
 	"regexp"
 	"nafue/config"
+	"nafue/models"
+	"io/ioutil"
+	"errors"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
 func GetFile(url string) {
 
-	// get fileId
+	// get api url from share link
 	aUrl := appifyUrl(url)
 
 	// download file header info
-	var fileHeader = display.FileDisplay{}
+	var fileHeader = display.FileHeaderDisplay{}
 	getFileHeader(aUrl, &fileHeader)
 
 	// download file body
-	secureData := getFileBodyByUrl(fileHeader.DownloadUrl)
-	log.Println("File Body: ", *secureData)
+	secureFileBody := getFileBody(fileHeader.DownloadUrl)
 
 	// ask for password
 	pass := promptPassword()
 
 	// decrypt file with password
-	fileBody := Decrypt(&fileHeader, pass, secureData)
-	log.Println("Decrypted Body: ", fileBody)
+	fileBody := Decrypt(&fileHeader, pass, secureFileBody)
+	log.Println("File Body: ", fileBody.ToString())
 }
 
 func PutFile(file string) string{
@@ -36,8 +38,11 @@ func PutFile(file string) string{
 	// ask for password
 	pass := promptPassword()
 
+	// get file contents
+	fileBody := getFileContentsFromPath(file)
+
 	// encrypt file with password
-	secureData, fileHeader := Encrypt(file, pass)
+	secureData, fileHeader := Encrypt(fileBody, pass)
 
 	// put file header info
 	putFileHeader(config.API_FILE_URL, fileHeader)
@@ -52,25 +57,29 @@ func PutFile(file string) string{
 
 }
 
+func getFileContentsFromPath(path string) *models.FileBody {
 
-func getFileHeader(url string, fileHeader *display.FileDisplay){
-	err := getJson(url, &fileHeader)
-	if err != nil {
-		log.Println("Error retrieving file header: ", err.Error())
-		os.Exit(1)
+	// verify file is under 50mb
+	fileInfo, err := os.Stat(path)
+	checkError(err)
+	fileSize := fileInfo.Size()
+	if fileSize > (config.FILE_SIZE_LIMIT * 1024 * 1024) {
+		panic(errors.New("File is larger than " + string(config.FILE_SIZE_LIMIT) + "mb."))
 	}
-	// decode salt
-	//saltByte, err := b64.StdEncoding.DecodeString(fileHeader.Salt)
-	//if err != nil {
-	//	log.Println("Error decoding salt: ", err.Error())
-	//	os.Exit(1)
-	//}
 
-	// decode iv
-	//iv, err := b64.StdEncoding.DecodeString(fileHeader.IV)
-	//if err != nil {
-	//	log.Println("Error decoding salt: ", err.Error())
-	//	os.Exit(1)
-	//}
+	// get file type and name
+	fileName := fileInfo.Name()
+
+	// read file
+	fileBytes, err := ioutil.ReadFile(path)
+	checkError(err)
+
+	// create file data package
+	fbp := models.FileBody{
+		Name: fileName,
+		Part: 0,
+		Content: fileBytes,
+	}
+	return &fbp
 }
 
