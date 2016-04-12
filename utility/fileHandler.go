@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -84,7 +85,7 @@ func getFileContentsFromPath(path string) *models.FileBody {
 	checkError(err)
 	fileSize := fileInfo.Size()
 	if fileSize > (config.FILE_SIZE_LIMIT * 1024 * 1024) {
-		panic(errors.New("File is larger than " + string(config.FILE_SIZE_LIMIT) + "mb."))
+		checkError(errors.New("File is larger than " + strconv.FormatInt(config.FILE_SIZE_LIMIT, 10) + "mb."))
 	}
 
 	// get file type and name

@@ -113,7 +113,7 @@ func makeSalt() []byte {
 func makeNonce() []byte {
 	nonce := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		panic(err.Error())
+		checkError(err)
 	}
 	return nonce
 }
@@ -121,7 +121,7 @@ func makeNonce() []byte {
 func makeAData() []byte {
 	aData := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, aData); err != nil {
-		panic(err.Error())
+		checkError(err)
 	}
 	return aData
 }

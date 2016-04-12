@@ -2,12 +2,12 @@ package utility
 
 import (
 	"os"
-	"log"
+	"fmt"
 )
 
 func checkError(e error) {
 	if e != nil {
-		log.Println("Error: ", e.Error())
+		fmt.Println("Error: ", e.Error())
 		os.Exit(1)
 	}
 }
