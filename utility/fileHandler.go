@@ -30,7 +30,9 @@ func GetFile(url string) {
 
 	// decrypt file with password
 	fileBody := Decrypt(&fileHeader, pass, secureFileBody)
-	log.Println("File Body: ", fileBody.ToString())
+
+	// write file to disk
+	writeFileContentsToPath(fileBody)
 }
 
 func PutFile(file string) string{
@@ -81,5 +83,12 @@ func getFileContentsFromPath(path string) *models.FileBody {
 		Content: fileBytes,
 	}
 	return &fbp
+}
+
+func writeFileContentsToPath(fileBody *models.FileBody) {
+
+	err := ioutil.WriteFile(fileBody.Name, fileBody.Content, 0644)
+	checkError(err)
+
 }
 
