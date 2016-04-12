@@ -2,13 +2,13 @@ package utility
 
 import (
 	"nafue-api/models/display"
-	"log"
 	"os"
 	"regexp"
 	"nafue/config"
 	"nafue/models"
 	"io/ioutil"
 	"errors"
+	"fmt"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -25,17 +25,35 @@ func GetFile(url string) {
 	// download file body
 	secureFileBody := getFileBody(fileHeader.DownloadUrl)
 
-	// ask for password
-	pass := promptPassword()
+	// loop until good pass or 3 attempts
+	var fileBody *models.FileBody
+	var err error
+	var attemptCount = 0
+	for attemptCount < 3 {
+		// ask for password
+		pass := promptPassword()
 
-	// decrypt file with password
-	fileBody := Decrypt(&fileHeader, pass, secureFileBody)
+		// decrypt file with password
+		fileBody, err = Decrypt(&fileHeader, pass, secureFileBody)
 
+		// check for error and decide path
+		if err == nil {
+			break
+		}
+		fmt.Println("Failed to decrypt. Please try again.")
+		attemptCount++
+	}
 	// write file to disk
-	writeFileContentsToPath(fileBody)
+	if err == nil {
+		writeFileContentsToPath(fileBody)
+		fmt.Println("File saved to: " + fileBody.Name)
+	} else {
+		fmt.Println("To many failed attempts. File was deleted.")
+		os.Exit(1)
+	}
 }
 
-func PutFile(file string) string{
+func PutFile(file string) string {
 
 	// ask for password
 	pass := promptPassword()
@@ -54,7 +72,7 @@ func PutFile(file string) string{
 
 	// provide share link
 	shareLink := config.SHARE_LINK + fileHeader.ShortUrl
-	log.Println("Share Link: ", shareLink)
+	fmt.Println("Share Link: ", shareLink)
 	return shareLink
 
 }

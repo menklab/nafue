@@ -12,25 +12,30 @@ import (
 	"nafue/models"
 	"encoding/json"
 	"nafue-api/models/display"
+	"errors"
 )
 
 
 var ()
 
-func Decrypt (fileHeader *display.FileHeaderDisplay, password string, secureData *[]byte) *models.FileBody{
+func Decrypt (fileHeader *display.FileHeaderDisplay, password string, secureData *[]byte) (*models.FileBody, error) {
 
 	// get key
 	key := getPbkdf2(password, fileHeader.Salt)
 
 	// decrypt
-	data := decrypt(secureData, fileHeader.AData, fileHeader.IV, key)
+	data, dErr := decrypt(secureData, fileHeader.AData, fileHeader.IV, key)
+	// if error decrypting return error
+	if dErr != nil {
+		return &models.FileBody{}, dErr
+	}
 
 	// use data to create a fileBody
 	var fileBody = models.FileBody{}
 	err := json.Unmarshal(*data, &fileBody)
 	checkError(err)
 
-	return &fileBody
+	return &fileBody, nil
 }
 
 func Encrypt(fileBodyPackage *models.FileBody, password string) (*[]byte, *display.FileHeaderDisplay) {
@@ -62,17 +67,19 @@ func Encrypt(fileBodyPackage *models.FileBody, password string) (*[]byte, *displ
 	return encrypt(&data, aData, nonce, key), &fileDisplay
 }
 
-func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) *[]byte {
+func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byte, error) {
 
 	//create cipher
 	block, err := aes.NewCipher(key)
+	checkError(err)
 
 	// decrypt
 	gcm, err := cipher.NewGCM(block)
 	data, err := gcm.Open(nil, nonce, *secureData, aData)
-	checkError(err)
-
-	return &data
+	if err != nil {
+		return &data, errors.New("Bad Password")
+	}
+	return &data, nil
 }
 
 func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte{
