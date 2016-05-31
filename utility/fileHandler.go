@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"log"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -70,6 +71,7 @@ func PutFile(file string) string {
 
 	// post body data
 	putFileBody(fileHeader.UploadUrl, secureData)
+	log.Println("Secure Data: ", secureData)
 
 	// provide share link
 	shareLink := config.SHARE_LINK + fileHeader.ShortUrl
