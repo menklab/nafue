@@ -1,16 +1,18 @@
-package utility
+package nafue
 
 import (
-	"nafue-api/models/display"
-	"os"
-	"regexp"
-	"nafue/config"
-	"nafue/models"
-	"io/ioutil"
+	"bytes"
 	"errors"
 	"fmt"
-	"strconv"
+	"github.com/menkveldj/nafue-api/models/display"
+	"github.com/menkveldj/nafue/config"
+	"github.com/menkveldj/nafue/models"
+	"io"
+	"io/ioutil"
 	"log"
+	"os"
+	"regexp"
+	"strconv"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -55,6 +57,27 @@ func GetFile(url string) {
 	}
 }
 
+func TryGetURL(url string) (*[]byte, *display.FileHeaderDisplay) {
+
+	// get api url from share link
+	aUrl := appifyUrl(url)
+
+	// dowload file header info
+	var fileHeader = display.FileHeaderDisplay{}
+	getFileHeader(aUrl, &fileHeader)
+
+	// dowload file body
+	return getFileBody(fileHeader.DownloadUrl), &fileHeader
+}
+
+func TryDecrypt(body *[]byte, header *display.FileHeaderDisplay, pass string) (io.Reader, string, error) {
+	fileBody, err := Decrypt(header, pass, body)
+	if err != nil {
+		return bytes.NewBufferString(""), "", err
+	}
+	return bytes.NewBuffer(fileBody.Content), fileBody.Name, nil
+}
+
 func PutFile(file string) string {
 
 	// ask for password
@@ -80,6 +103,24 @@ func PutFile(file string) string {
 
 }
 
+func PutReader(file io.Reader, size int64, name, pass string) string {
+	// get file contents
+	fileBody := getFileContentsFromReader(file, size, name)
+
+	// encrypt file with password
+	secureData, fileHeader := Encrypt(fileBody, pass)
+
+	// put file header info
+	putFileHeader(config.API_FILE_URL, fileHeader)
+
+	// post body data
+	putFileBody(fileHeader.UploadUrl, secureData)
+
+	// provide share link
+	shareLink := config.SHARE_LINK + fileHeader.ShortUrl
+	return shareLink
+}
+
 func getFileContentsFromPath(path string) *models.FileBody {
 
 	// verify file is under 50mb
@@ -99,10 +140,29 @@ func getFileContentsFromPath(path string) *models.FileBody {
 
 	// create file data package
 	fbp := models.FileBody{
-		Name: fileName,
-		Part: 0,
+		Name:    fileName,
+		Part:    0,
 		Content: fileBytes,
 	}
+	return &fbp
+}
+
+func getFileContentsFromReader(reader io.Reader, size int64, name string) *models.FileBody {
+
+	// check file is under 50mb
+	if size > (config.FILE_SIZE_LIMIT * 1024 * 1024) {
+		checkError(errors.New("File is larger than " + strconv.FormatInt(config.FILE_SIZE_LIMIT, 10) + "mb."))
+	}
+
+	fileBytes, err := ioutil.ReadAll(reader)
+	checkError(err)
+
+	fbp := models.FileBody{
+		Name:    name,
+		Part:    0,
+		Content: fileBytes,
+	}
+
 	return &fbp
 }
 
@@ -112,4 +172,3 @@ func writeFileContentsToPath(fileBody *models.FileBody) {
 	checkError(err)
 
 }
-

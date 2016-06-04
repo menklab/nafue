@@ -1,24 +1,23 @@
-package utility
+package nafue
 
 import (
-	"golang.org/x/crypto/pbkdf2"
-	"nafue/config"
-	"io"
-	"crypto/rand"
-	"log"
-	"os"
 	"crypto/aes"
 	"crypto/cipher"
-	"nafue/models"
+	"crypto/rand"
 	"encoding/json"
-	"nafue-api/models/display"
 	"errors"
+	"github.com/menkveldj/nafue-api/models/display"
+	"github.com/menkveldj/nafue/config"
+	"github.com/menkveldj/nafue/models"
+	"golang.org/x/crypto/pbkdf2"
+	"io"
+	"log"
+	"os"
 )
-
 
 var ()
 
-func Decrypt (fileHeader *display.FileHeaderDisplay, password string, secureData *[]byte) (*models.FileBody, error) {
+func Decrypt(fileHeader *display.FileHeaderDisplay, password string, secureData *[]byte) (*models.FileBody, error) {
 
 	// get key
 	key := getPbkdf2(password, fileHeader.Salt)
@@ -55,7 +54,7 @@ func Encrypt(fileBodyPackage *models.FileBody, password string) (*[]byte, *displ
 	fileDisplay := display.FileHeaderDisplay{
 		Salt: salt,
 		// Todo update IV to nonce once api and ui is updated
-		IV: nonce,
+		IV:    nonce,
 		AData: aData,
 	}
 
@@ -82,9 +81,9 @@ func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byt
 	return &data, nil
 }
 
-func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte{
+func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte {
 
-	 //create cipher
+	//create cipher
 	block, err := aes.NewCipher(key)
 	checkError(err)
 
