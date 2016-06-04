@@ -1,11 +1,11 @@
-package utility
+package nafue
 
 import "os"
 import (
-	"nafue/config"
-	"log"
 	"fmt"
+	"github.com/menkveldj/nafue/config"
 	"golang.org/x/crypto/ssh/terminal"
+	"log"
 	"syscall"
 )
 

@@ -1,16 +1,16 @@
-package utility
+package nafue
 
 import (
-	"encoding/json"
-	"net/http"
-	"log"
-	"errors"
-	"strconv"
-	"os"
-	"io/ioutil"
 	"bytes"
-	"nafue/config"
-	"nafue-api/models/display"
+	"encoding/json"
+	"errors"
+	"github.com/menkveldj/nafue-api/models/display"
+	"github.com/menkveldj/nafue/config"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"strconv"
 )
 
 type ErrorDisplay struct {
@@ -27,7 +27,7 @@ func getFileHeader(url string, target interface{}) error {
 	if r.StatusCode != 200 {
 		errorDisplay := ErrorDisplay{}
 		err := json.NewDecoder(r.Body).Decode(&errorDisplay)
-		if (err != nil) {
+		if err != nil {
 			log.Println("Error getting service, error message: ", err.Error())
 			return err
 		}

@@ -1,8 +1,8 @@
-package utility
+package nafue
 
 import (
-	"os"
 	"fmt"
+	"os"
 )
 
 func checkError(e error) {
