@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/menkveldj/nafue-api/models/display"
-	"github.com/menkveldj/nafue/config"
+	"nafue/config"
 	"io/ioutil"
 	"log"
 	"net/http"
