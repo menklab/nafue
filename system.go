@@ -1,15 +1,18 @@
 package nafue
 
-import "os"
 import (
+	"os"
 	"fmt"
-	"github.com/menkveldj/nafue/config"
 	"golang.org/x/crypto/ssh/terminal"
 	"log"
 	"syscall"
+	"nafue/config"
 )
 
-func Init() {
+func Init(c config.Config) {
+
+	// init config
+	config.Set(c)
 
 	// check temp
 	setupTemp()
@@ -17,7 +20,7 @@ func Init() {
 
 func setupTemp() {
 
-	err := os.MkdirAll(config.GetTempDir(), 0700)
+	err := os.MkdirAll(config.Current.TEMP_DIR, 0700)
 	if err != nil {
 		log.Println("error creating temp directory: ", err.Error())
 	}
@@ -33,3 +36,11 @@ func promptPassword() string {
 	fmt.Println()
 	return password
 }
+
+func checkError(e error) {
+	if e != nil {
+		fmt.Println("Error: ", e.Error())
+		os.Exit(1)
+	}
+}
+

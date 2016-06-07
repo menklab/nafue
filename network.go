@@ -104,6 +104,6 @@ func putFileBody(url string, body *[]byte) {
 func appifyUrl(url string) string {
 	fileId := fileIdRegex.FindStringSubmatch(url)[1]
 	// use fileId to get file from api
-	appifiedUrl := config.API_URL + "/files/" + fileId
+	appifiedUrl := config.Current.API_URL + "/files/" + fileId
 	return appifiedUrl
 }

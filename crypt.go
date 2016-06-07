@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/menkveldj/nafue-api/models/display"
-	"github.com/menkveldj/nafue/config"
-	"github.com/menkveldj/nafue/models"
 	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"log"
 	"os"
+	"nafue/models"
+	"nafue/config"
 )
 
 var ()
@@ -95,12 +95,12 @@ func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte {
 }
 
 func getPbkdf2(password string, salt []byte) []byte {
-	dk := pbkdf2.Key([]byte(password), salt, config.ITERATIONS, config.KEY_LENGTH, config.HASH_TYPE)
+	dk := pbkdf2.Key([]byte(password), salt, config.Current.ITERATIONS, config.Current.KEY_LENGTH, config.Current.HASH_TYPE)
 	return dk
 }
 
 func makeSalt() []byte {
-	salt := make([]byte, config.SALT_LENGTH)
+	salt := make([]byte, config.Current.SALT_LENGTH)
 	_, err := io.ReadFull(rand.Reader, salt)
 	if err != nil {
 		log.Println("Error creating salt: ", err.Error())

@@ -5,14 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/menkveldj/nafue-api/models/display"
-	"github.com/menkveldj/nafue/config"
-	"github.com/menkveldj/nafue/models"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
+	"nafue/models"
+	"nafue/config"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -90,14 +90,14 @@ func PutFile(file string) string {
 	secureData, fileHeader := Encrypt(fileBody, pass)
 
 	// put file header info
-	putFileHeader(config.API_FILE_URL, fileHeader)
+	putFileHeader(config.Current.API_FILE_URL, fileHeader)
 
 	// post body data
 	putFileBody(fileHeader.UploadUrl, secureData)
 	log.Println("Secure Data: ", secureData)
 
 	// provide share link
-	shareLink := config.SHARE_LINK + fileHeader.ShortUrl
+	shareLink := config.Current.SHARE_LINK + fileHeader.ShortUrl
 	fmt.Println("Share Link: ", shareLink)
 	return shareLink
 
@@ -111,13 +111,13 @@ func PutReader(file io.Reader, size int64, name, pass string) string {
 	secureData, fileHeader := Encrypt(fileBody, pass)
 
 	// put file header info
-	putFileHeader(config.API_FILE_URL, fileHeader)
+	putFileHeader(config.Current.API_FILE_URL, fileHeader)
 
 	// post body data
 	putFileBody(fileHeader.UploadUrl, secureData)
 
 	// provide share link
-	shareLink := config.SHARE_LINK + fileHeader.ShortUrl
+	shareLink := config.Current.SHARE_LINK + fileHeader.ShortUrl
 	return shareLink
 }
 
@@ -127,8 +127,8 @@ func getFileContentsFromPath(path string) *models.FileBody {
 	fileInfo, err := os.Stat(path)
 	checkError(err)
 	fileSize := fileInfo.Size()
-	if fileSize > (config.FILE_SIZE_LIMIT * 1024 * 1024) {
-		checkError(errors.New("File is larger than " + strconv.FormatInt(config.FILE_SIZE_LIMIT, 10) + "mb."))
+	if fileSize > (config.Current.FILE_SIZE_LIMIT * 1024 * 1024) {
+		checkError(errors.New("File is larger than " + strconv.FormatInt(config.Current.FILE_SIZE_LIMIT, 10) + "mb."))
 	}
 
 	// get file type and name
@@ -150,8 +150,8 @@ func getFileContentsFromPath(path string) *models.FileBody {
 func getFileContentsFromReader(reader io.Reader, size int64, name string) *models.FileBody {
 
 	// check file is under 50mb
-	if size > (config.FILE_SIZE_LIMIT * 1024 * 1024) {
-		checkError(errors.New("File is larger than " + strconv.FormatInt(config.FILE_SIZE_LIMIT, 10) + "mb."))
+	if size > (config.Current.FILE_SIZE_LIMIT * 1024 * 1024) {
+		checkError(errors.New("File is larger than " + strconv.FormatInt(config.Current.FILE_SIZE_LIMIT, 10) + "mb."))
 	}
 
 	fileBytes, err := ioutil.ReadAll(reader)
