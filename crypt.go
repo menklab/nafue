@@ -11,8 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"nafue/models"
-	"nafue/config"
+	"github.com/menkveldj/nafue/models"
 )
 
 var ()
@@ -95,12 +94,12 @@ func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte {
 }
 
 func getPbkdf2(password string, salt []byte) []byte {
-	dk := pbkdf2.Key([]byte(password), salt, config.Current.ITERATIONS, config.Current.KEY_LENGTH, config.Current.HASH_TYPE)
+	dk := pbkdf2.Key([]byte(password), salt, C.ITERATIONS, C.KEY_LENGTH, C.HASH_TYPE)
 	return dk
 }
 
 func makeSalt() []byte {
-	salt := make([]byte, config.Current.SALT_LENGTH)
+	salt := make([]byte, C.SALT_LENGTH)
 	_, err := io.ReadFull(rand.Reader, salt)
 	if err != nil {
 		log.Println("Error creating salt: ", err.Error())

@@ -6,13 +6,15 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"log"
 	"syscall"
-	"nafue/config"
+	"github.com/menkveldj/nafue/config"
 )
+
+var C config.Config
 
 func Init(c config.Config) {
 
 	// init config
-	config.Set(c)
+	C = c
 
 	// check temp
 	setupTemp()
@@ -20,7 +22,7 @@ func Init(c config.Config) {
 
 func setupTemp() {
 
-	err := os.MkdirAll(config.Current.TEMP_DIR, 0700)
+	err := os.MkdirAll(C.TEMP_DIR, 0700)
 	if err != nil {
 		log.Println("error creating temp directory: ", err.Error())
 	}

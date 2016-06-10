@@ -16,17 +16,13 @@ type Config struct {
 	SHARE_LINK      string
 	ITERATIONS      int
 	KEY_LENGTH      int
-	SALT_LENGTH     int
-	FILE_SIZE_LIMIT int
+	SALT_LENGTH     int64
+	FILE_SIZE_LIMIT int64
 	NAFUE_TEMP_FILE string
 	API_URL         string
 	API_FILE_URL    string
-	HASH_TYPE       hash.Hash
+	HASH_TYPE       func() hash.Hash
 }
-
-var (
-	Current Config
-)
 
 // get production configuration for lib
 func Production() Config {
@@ -42,19 +38,31 @@ func Production() Config {
 		SALT_LENGTH: 32,
 		FILE_SIZE_LIMIT: 50, // 50 mb
 		NAFUE_TEMP_FILE: ".tmp.nafue",
-		HASH_TYPE: sha1.New(),
+		HASH_TYPE: sha1.New,
 	}
-	c.API_URL = Current.API_PROTOCOL + "://" + Current.API_HOST + ":" + Current.API_PORT + "/" + Current.API_BASE;
-	c.API_FILE_URL = Current.API_URL + "/files";
+	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
+	c.API_FILE_URL = c.API_URL + "/files";
 	return c
 }
 
-// set a cost configuration for the lib
-func Set(c Config) {
-	Current = c
+func Development() Config {
+	c := Config{
+		API_PROTOCOL: "http",
+		API_HOST: "dev-api.nafue.com",
+		API_PORT: "80",
+		API_BASE: "api",
+		TEMP_DIR: filepath.Join(os.Getenv("HOME"), "nafue"),
+		SHARE_LINK: "http://dev.nafue.com/file/",
+		ITERATIONS: 1000,
+		KEY_LENGTH: 32,
+		SALT_LENGTH: 32,
+		FILE_SIZE_LIMIT: 50, // 50 mb
+		NAFUE_TEMP_FILE: ".tmp.nafue",
+		HASH_TYPE: sha1.New,
+	}
+	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
+	c.API_FILE_URL = c.API_URL + "/files";
+	return c
 }
 
-// get current configuration utilized by lib
-func Get() Config {
-	return Current
-}
+

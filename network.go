@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/menkveldj/nafue-api/models/display"
-	"nafue/config"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -88,7 +87,7 @@ func putFileBody(url string, body *[]byte) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("Error posting fileheader data: ", err.Error())
+		log.Println("Error posting filebody data: ", err.Error())
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
@@ -104,6 +103,6 @@ func putFileBody(url string, body *[]byte) {
 func appifyUrl(url string) string {
 	fileId := fileIdRegex.FindStringSubmatch(url)[1]
 	// use fileId to get file from api
-	appifiedUrl := config.Current.API_URL + "/files/" + fileId
+	appifiedUrl := C.API_URL + "/files/" + fileId
 	return appifiedUrl
 }

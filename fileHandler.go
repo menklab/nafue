@@ -11,8 +11,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"nafue/models"
-	"nafue/config"
+	"github.com/menkveldj/nafue/models"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -90,14 +89,14 @@ func PutFile(file string) string {
 	secureData, fileHeader := Encrypt(fileBody, pass)
 
 	// put file header info
-	putFileHeader(config.Current.API_FILE_URL, fileHeader)
+	putFileHeader(C.API_FILE_URL, fileHeader)
 
 	// post body data
 	putFileBody(fileHeader.UploadUrl, secureData)
 	log.Println("Secure Data: ", secureData)
 
 	// provide share link
-	shareLink := config.Current.SHARE_LINK + fileHeader.ShortUrl
+	shareLink := C.SHARE_LINK + fileHeader.ShortUrl
 	fmt.Println("Share Link: ", shareLink)
 	return shareLink
 
@@ -111,13 +110,13 @@ func PutReader(file io.Reader, size int64, name, pass string) string {
 	secureData, fileHeader := Encrypt(fileBody, pass)
 
 	// put file header info
-	putFileHeader(config.Current.API_FILE_URL, fileHeader)
+	putFileHeader(C.API_FILE_URL, fileHeader)
 
 	// post body data
 	putFileBody(fileHeader.UploadUrl, secureData)
 
 	// provide share link
-	shareLink := config.Current.SHARE_LINK + fileHeader.ShortUrl
+	shareLink := C.SHARE_LINK + fileHeader.ShortUrl
 	return shareLink
 }
 
@@ -127,8 +126,8 @@ func getFileContentsFromPath(path string) *models.FileBody {
 	fileInfo, err := os.Stat(path)
 	checkError(err)
 	fileSize := fileInfo.Size()
-	if fileSize > (config.Current.FILE_SIZE_LIMIT * 1024 * 1024) {
-		checkError(errors.New("File is larger than " + strconv.FormatInt(config.Current.FILE_SIZE_LIMIT, 10) + "mb."))
+	if fileSize > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
+		checkError(errors.New("File is larger than " + strconv.FormatInt(C.FILE_SIZE_LIMIT, 10) + "mb."))
 	}
 
 	// get file type and name
@@ -150,8 +149,8 @@ func getFileContentsFromPath(path string) *models.FileBody {
 func getFileContentsFromReader(reader io.Reader, size int64, name string) *models.FileBody {
 
 	// check file is under 50mb
-	if size > (config.Current.FILE_SIZE_LIMIT * 1024 * 1024) {
-		checkError(errors.New("File is larger than " + strconv.FormatInt(config.Current.FILE_SIZE_LIMIT, 10) + "mb."))
+	if size > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
+		checkError(errors.New("File is larger than " + strconv.FormatInt(C.FILE_SIZE_LIMIT, 10) + "mb."))
 	}
 
 	fileBytes, err := ioutil.ReadAll(reader)
