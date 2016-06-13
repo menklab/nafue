@@ -5,12 +5,9 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"github.com/menkveldj/nafue-api/models/display"
 	"golang.org/x/crypto/pbkdf2"
 	"io"
-	"log"
-	"os"
 	"github.com/menkveldj/nafue/models"
 )
 
@@ -31,66 +28,57 @@ func Decrypt(fileHeader *display.FileHeaderDisplay, password string, secureData 
 	// use data to create a fileBody
 	var fileBody = models.FileBody{}
 	err := json.Unmarshal(*data, &fileBody)
-	checkError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	return &fileBody, nil
 }
 
-func Encrypt(fileBodyPackage *models.FileBody, password string) (*[]byte, *display.FileHeaderDisplay) {
-	// create aData
-	aData := makeAData()
+func Encrypt(reader io.Reader, key *[]byte, fileHeader *display.FileHeaderDisplay) (*[]byte, *display.FileHeaderDisplay, error) {
 
-	// create salt
-	salt := makeSalt()
 
-	// create nonce
-	nonce := makeNonce()
-
-	// generate key
-	key := getPbkdf2(password, salt)
-
-	// create file display
-	fileDisplay := display.FileHeaderDisplay{
-		Salt: salt,
-		// Todo update IV to nonce once api and ui is updated
-		IV:    nonce,
-		AData: aData,
-	}
-
-	// marshal data for encryption
-	data, err := json.Marshal(*fileBodyPackage)
-	checkError(err)
-
-	// encrypt
-	return encrypt(&data, aData, nonce, key), &fileDisplay
+	//// marshal data for encryption
+	//data, err := json.Marshal(*fileBodyPackage)
+	//if err != nil {
+	//	return nil, nil, err
+	//}
+	//
+	//// encrypt
+	//eData, err := encrypt(&data, aData, nonce, key)
+	//return eData, fileDisplay, nil
+	return nil, nil, nil
 }
 
 func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byte, error) {
 
 	//create cipher
 	block, err := aes.NewCipher(key)
-	checkError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	// decrypt
 	gcm, err := cipher.NewGCM(block)
 	data, err := gcm.Open(nil, nonce, *secureData, aData)
 	if err != nil {
-		return &data, errors.New("Bad Password")
 	}
 	return &data, nil
 }
 
-func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) *[]byte {
+func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) (*[]byte, error) {
 
 	//create cipher
 	block, err := aes.NewCipher(key)
-	checkError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	// encrypt
 	gcm, err := cipher.NewGCM(block)
 	secureData := gcm.Seal(nil, nonce, *data, aData)
 
-	return &secureData
+	return &secureData, nil
 }
 
 func getPbkdf2(password string, salt []byte) []byte {
@@ -98,28 +86,27 @@ func getPbkdf2(password string, salt []byte) []byte {
 	return dk
 }
 
-func makeSalt() []byte {
+func makeSalt() ([]byte, error) {
 	salt := make([]byte, C.SALT_LENGTH)
 	_, err := io.ReadFull(rand.Reader, salt)
 	if err != nil {
-		log.Println("Error creating salt: ", err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
-	return salt
+	return salt, nil
 }
-func makeNonce() []byte {
+func makeNonce() ([]byte, error) {
 	nonce := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		checkError(err)
+		return nil, err
 	}
-	return nonce
+	return nonce, nil
 }
 
-func makeAData() []byte {
+func makeAData() ([]byte, error) {
 	aData := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, aData); err != nil {
-		checkError(err)
+		return nil, err
 	}
-	return aData
+	return aData, nil
 }

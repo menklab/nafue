@@ -6,9 +6,7 @@ import (
 	"errors"
 	"github.com/menkveldj/nafue-api/models/display"
 	"io/ioutil"
-	"log"
 	"net/http"
-	"os"
 	"strconv"
 )
 
@@ -27,7 +25,6 @@ func getFileHeader(url string, target interface{}) error {
 		errorDisplay := ErrorDisplay{}
 		err := json.NewDecoder(r.Body).Decode(&errorDisplay)
 		if err != nil {
-			log.Println("Error getting service, error message: ", err.Error())
 			return err
 		}
 		return errors.New(strconv.Itoa(r.StatusCode) + ", " + errorDisplay.Message)
@@ -36,68 +33,75 @@ func getFileHeader(url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func getFileBody(url string) *[]byte {
+func getFileBody(url string) (*[]byte, error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		checkError(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// read body
 	rBody, err := ioutil.ReadAll(resp.Body)
-	checkError(err)
-	return &rBody
+	if (err != nil) {
+		return nil, err
+	}
+	return &rBody, nil
 }
 
-func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) {
+func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 	// create json body
 	body, err := json.Marshal(&fileHeader)
 
 	// create request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
-	checkError(err)
+	if (err != nil) {
+		return nil
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	// make client and do request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("Error posting fileheader data: ", err.Error())
-		os.Exit(1)
+		return err
 	}
 	defer resp.Body.Close()
 
 	rBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Println("Error in service response: ", err.Error())
-		os.Exit(1)
+		return err
 	}
 
 	err = json.Unmarshal(rBody, &fileHeader)
-	checkError(err)
+	if (err != nil) {
+		return err
+	}
+
+	return nil
 }
 
-func putFileBody(url string, body *[]byte) {
+func putFileBody(url string, body *[]byte) error {
 	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(*body))
-	checkError(err)
+	if (err != nil) {
+		return err
+	}
+
 	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
 
 	// make client and do request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("Error posting filebody data: ", err.Error())
-		os.Exit(1)
+		return err
 	}
 	defer resp.Body.Close()
 
 	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Println("Error in service response: ", err.Error())
-		os.Exit(1)
+		return err
 	}
-
+	return nil
 }
 
 func appifyUrl(url string) string {
