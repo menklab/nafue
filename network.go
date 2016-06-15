@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"io"
 )
 
 type ErrorDisplay struct {
@@ -56,15 +57,17 @@ func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 	// create request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
 	if (err != nil) {
-		return nil
+		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
 
 	// make client and do request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("Services responded with " + resp.Status)
 	}
 	defer resp.Body.Close()
 
@@ -81,12 +84,19 @@ func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 	return nil
 }
 
-func putFileBody(url string, body *[]byte) error {
-	req, err := http.NewRequest("PUT", url, bytes.NewBuffer(*body))
-	if (err != nil) {
+func putFileBody(fileHeader *display.FileHeaderDisplay, secureData io.ReadWriteSeeker) error {
+
+	// set reader to start of file
+	_, err := secureData.Seek(0,0)
+	if err != nil {
 		return err
 	}
 
+	req, err := http.NewRequest("PUT", fileHeader.UploadUrl, secureData)
+	if (err != nil) {
+		return err
+	}
+	req.ContentLength = fileHeader.FileSize
 	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
 
 	// make client and do request
@@ -97,10 +107,16 @@ func putFileBody(url string, body *[]byte) error {
 	}
 	defer resp.Body.Close()
 
-	_, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
+	//body, err := ioutil.ReadAll(resp.Body)
+	//if err != nil {
+	//	return err
+	//}
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("Services responded with " + resp.Status)
 	}
+
+
 	return nil
 }
 

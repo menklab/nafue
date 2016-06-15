@@ -40,7 +40,7 @@ func Decrypt(reader io.ReaderAt, writer io.WriterAt, password string, fileHeader
 	return nil, nil
 }
 
-func Encrypt(reader io.ReaderAt, writer io.WriterAt, filename string, password string) (*display.FileHeaderDisplay, error) {
+func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, password string) (*display.FileHeaderDisplay, error) {
 
 	// make salt
 	salt, err := makeSalt();
@@ -61,11 +61,11 @@ func Encrypt(reader io.ReaderAt, writer io.WriterAt, filename string, password s
 	// create cipher stream
 	stream := cipher.NewCTR(block, iv)
 
-	// hash
+	// hash & checksum
 	h := hmac.New(sha256.New, key)
 
 	// do encryption
-	sizeOfBody, err := encrypt(reader, writer, stream, h)
+	_, err = encrypt(data, secureData, stream, h)
 	if err != nil {
 		return nil, err
 	}
@@ -73,14 +73,15 @@ func Encrypt(reader io.ReaderAt, writer io.WriterAt, filename string, password s
 	// protect and hash filename
 	sfn := []byte(config.FILENAME_KEY_START + filename + config.FILENAME_KEY_END)
 	stream.XORKeyStream(sfn, sfn)
-	sizeOfName, err := writer.WriteAt(sfn, int64(sizeOfBody))
+	//writer.Seek(0, 2)
+	_, err = secureData.Write(sfn)
 	if err != nil {
 		return nil, err
 	}
 	h.Write(sfn)
 
 	// append and hash iv
-	sizeOfIv, err := writer.WriteAt(iv, int64(sizeOfBody + sizeOfName))
+	_, err = secureData.Write(iv)
 	if err != nil {
 		return nil, err
 	}
@@ -88,14 +89,13 @@ func Encrypt(reader io.ReaderAt, writer io.WriterAt, filename string, password s
 
 	// get hash sum
 	mac := h.Sum(nil)
-	sizeOfMac, err := writer.WriteAt(mac, int64(sizeOfName + sizeOfBody + sizeOfIv))
+	_, err = secureData.Write(mac)
 	if err != nil {
 		return nil, err
 	}
 
 	// create file header
 	fhd := display.FileHeaderDisplay{
-		FileSize: (sizeOfIv + sizeOfBody + sizeOfName + sizeOfMac),
 		Salt: salt,
 	}
 
@@ -117,36 +117,34 @@ func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byt
 	return &data, nil
 }
 
-func encrypt(reader io.ReaderAt, writer io.WriterAt, stream cipher.Stream, h hash.Hash) (int, error) {
+func encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, stream cipher.Stream, h hash.Hash ) (int, error) {
 	var i int = 0;
 	var len int = 32000 // 32 kb
 	var total int = 0;
 
-	data := make([]byte, len)
+	chunk := make([]byte, len)
 	for {
-		in, err := reader.ReadAt(data, int64(len * i))
+		in, err := data.ReadAt(chunk, int64(len * i))
 		if err != nil && err != io.EOF { // if its an error other than EOF
 			return total, err
 		} else if err == io.EOF && in == 0 { // if EOF and no extra data we are done
 			return total, nil
 		} else { // if extra data handle it before exit
-			data = data[:in]
+			chunk = chunk[:in]
 		}
 
 		// do encryption
-		stream.XORKeyStream(data, data)
+		stream.XORKeyStream(chunk, chunk)
 
 		// write to file
-		_, err = writer.WriteAt(data, int64(len*i))
+		_, err = secureData.Write(chunk)
 		if err != nil {
 			return total, err
 		}
 
-		// add to hmac
-		out, err := h.Write(data)
-		if err != nil {
-			return total, err
-		}
+		// add to hmac & md5
+		out, _ := h.Write(chunk)
+
 		total += out // add up all written io so we know how large file is
 		i++;
 	}

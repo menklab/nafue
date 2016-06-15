@@ -68,4 +68,24 @@ func Development() Config {
 	return c
 }
 
+func Local() Config {
+	c := Config{
+		API_PROTOCOL: "http",
+		API_HOST: "localhost",
+		API_PORT: "9090",
+		API_BASE: "api",
+		TEMP_DIR: filepath.Join(os.Getenv("HOME"), "nafue"),
+		SHARE_LINK: "http://localhost/file/",
+		ITERATIONS: 1000,
+		KEY_LENGTH: 32,
+		SALT_LENGTH: 32,
+		FILE_SIZE_LIMIT: 50, // 50 mb
+		NAFUE_TEMP_FILE: ".tmp.nafue",
+		HASH_TYPE: sha1.New,
+	}
+	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
+	c.API_FILE_URL = c.API_URL + "/files";
+	return c
+}
+
 

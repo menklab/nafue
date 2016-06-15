@@ -5,14 +5,15 @@ import (
 	"io"
 	"regexp"
 	"strconv"
-	"fmt"
 	"os"
+	"crypto/sha256"
+	"github.com/menkveldj/nafue-api/models/display"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
 
-//func GetFile(url string) (*[]byte, *display.FileHeaderDisplay, error) {
+func UnSealFile(url string) (*[]byte, *display.FileHeaderDisplay, error) {
 //
 //	// get api url from share link
 //	aUrl := appifyUrl(url)
@@ -27,8 +28,8 @@ var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 //		return nil, nil, err
 //	}
 //	return fileBody, &fileHeader, nil
-//
-//}
+	return nil, nil, nil
+}
 //
 //func TryDecrypt(body *[]byte, header *display.FileHeaderDisplay, pass string) (io.Reader, string, error) {
 //	fileBody, err := Decrypt(header, pass, body)
@@ -38,47 +39,49 @@ var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 //	return bytes.NewBuffer(fileBody.Content), fileBody.Name, nil
 //}
 
-func SealFile(reader io.ReaderAt, writer io.WriterAt, fileInfo os.FileInfo, name, pass string) error {
+func SealFile(data io.ReaderAt, secureData io.ReadWriteSeeker, fileInfo os.FileInfo, name, pass string) (string, error) {
 
 	// check file is under 50mb
 	if fileInfo.Size() > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
 		err := errors.New("File is larger than " + strconv.FormatInt(C.FILE_SIZE_LIMIT, 10) + "mb.")
-		return err
+		return "", err
 	}
 
 	// encrypt to temp file
-	fileHeader, err := Encrypt(reader, writer, fileInfo.Name(), pass)
+	fileHeader, err := Encrypt(data, secureData, fileInfo.Name(), pass)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	fmt.Println("File Header: ", fileHeader)
+	// set reader to start of file
+	_, err = secureData.Seek(0,0)
+	if err != nil {
+		return "", err
+	}
 
-	//err = putFileHeader(C.API_FILE_URL, &fileHeader)
-	//if err != nil {
-	//	return err
-	//}
+	// create checksum
+	checksum := sha256.New()
+	fileSize, err := io.Copy(checksum, secureData)
+	if err != nil {
+		return "", nil
+	}
+	fileHeader.MD5Checksum = checksum.Sum(nil)
+	fileHeader.FileSize = fileSize
 
-	//// create pbkdf2 key
-	//key := getPbkdf2(pass, salt)
-	//
-	//// encrypt and write data
-	//err = Encrypt(file, key, &fileHeader)
-	//
-	//// encrypt file with password
-	////secureData, fileHeader, err := Encrypt(fileBody, pass)
-	//if err != nil {
-	//	return "", err
-	//}
-	//
-	//
-	//// post body data
-	////putFileBody(fileHeader.UploadUrl, secureData)
-	//
-	//// provide share link
-	//shareLink := C.SHARE_LINK + fileHeader.ShortUrl
-	//return shareLink, nil
-	return nil
+	err = putFileHeader(C.API_FILE_URL, fileHeader)
+	if err != nil {
+		return "", errors.New("PutFileHeader: " + err.Error())
+	}
+
+	// post body data
+	err = putFileBody(fileHeader, secureData)
+	if err != nil {
+		return "", errors.New("PutFileBody: " + err.Error())
+	}
+
+	// provide share link
+	shareLink := C.SHARE_LINK + fileHeader.ShortUrl
+	return shareLink, nil
 }
 
 //
