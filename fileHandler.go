@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"fmt"
+	"os"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -37,16 +38,16 @@ var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 //	return bytes.NewBuffer(fileBody.Content), fileBody.Name, nil
 //}
 
-func SealFile(file io.ReaderAt, sealedFile io.WriterAt, size int64, name, pass string) error {
+func SealFile(reader io.ReaderAt, writer io.WriterAt, fileInfo os.FileInfo, name, pass string) error {
 
 	// check file is under 50mb
-	if size > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
+	if fileInfo.Size() > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
 		err := errors.New("File is larger than " + strconv.FormatInt(C.FILE_SIZE_LIMIT, 10) + "mb.")
 		return err
 	}
 
 	// encrypt to temp file
-	fileHeader, err := Encrypt(file, sealedFile, pass)
+	fileHeader, err := Encrypt(reader, writer, fileInfo.Name(), pass)
 	if err != nil {
 		return err
 	}

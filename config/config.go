@@ -7,6 +7,9 @@ import (
 	"hash"
 )
 
+const FILENAME_KEY_START string = "#STARTFILENAME'"
+const FILENAME_KEY_END string = "'ENDFILENAME#"
+
 type Config struct {
 	API_PROTOCOL    string
 	API_HOST        string

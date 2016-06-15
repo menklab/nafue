@@ -4,7 +4,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/json"
 	"github.com/menkveldj/nafue-api/models/display"
 	"golang.org/x/crypto/pbkdf2"
 	"io"
@@ -12,38 +11,41 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"hash"
+	"github.com/menkveldj/nafue/config"
 )
 
 var ()
 
-func Decrypt(fileHeader *display.FileHeaderDisplay, password string, secureData *[]byte) (*models.FileBody, error) {
+func Decrypt(reader io.ReaderAt, writer io.WriterAt, password string, fileHeader *display.FileHeaderDisplay) (*models.FileBody, error) {
 
-	// get key
-	key := getPbkdf2(password, fileHeader.Salt)
+	//// get key
+	//key := getPbkdf2(password, fileHeader.Salt)
+	//
+	//// decrypt
+	//data, dErr := decrypt(secureData,nil, nil, key)
+	//// if error decrypting return error
+	//if dErr != nil {
+	//	return &models.FileBody{}, dErr
+	//}
+	//
+	//// use data to create a fileBody
+	//var fileBody = models.FileBody{}
+	//err := json.Unmarshal(*data, &fileBody)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//return &fileBody, nil
 
-	// decrypt
-	data, dErr := decrypt(secureData, fileHeader.AData, fileHeader.IV, key)
-	// if error decrypting return error
-	if dErr != nil {
-		return &models.FileBody{}, dErr
-	}
-
-	// use data to create a fileBody
-	var fileBody = models.FileBody{}
-	err := json.Unmarshal(*data, &fileBody)
-	if err != nil {
-		return nil, err
-	}
-
-	return &fileBody, nil
+	return nil, nil
 }
 
-func Encrypt(reader io.ReaderAt, writer io.WriterAt, password string) (int64, error) {
+func Encrypt(reader io.ReaderAt, writer io.WriterAt, filename string, password string) (*display.FileHeaderDisplay, error) {
 
 	// make salt
 	salt, err := makeSalt();
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	// make key with salt
@@ -53,7 +55,7 @@ func Encrypt(reader io.ReaderAt, writer io.WriterAt, password string) (int64, er
 	// make iv
 	iv, err := makeIv(block.BlockSize())
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	// create cipher stream
@@ -63,20 +65,41 @@ func Encrypt(reader io.ReaderAt, writer io.WriterAt, password string) (int64, er
 	h := hmac.New(sha256.New, key)
 
 	// do encryption
-	out, err := encrypt(reader, writer, stream, h)
+	sizeOfBody, err := encrypt(reader, writer, stream, h)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
+	// protect and hash filename
+	sfn := []byte(config.FILENAME_KEY_START + filename + config.FILENAME_KEY_END)
+	stream.XORKeyStream(sfn, sfn)
+	sizeOfName, err := writer.WriteAt(sfn, int64(sizeOfBody))
+	if err != nil {
+		return nil, err
+	}
+	h.Write(sfn)
+
 	// append and hash iv
-	writer.WriteAt(iv, out)
+	sizeOfIv, err := writer.WriteAt(iv, int64(sizeOfBody + sizeOfName))
+	if err != nil {
+		return nil, err
+	}
 	h.Write(iv)
 
 	// get hash sum
 	mac := h.Sum(nil)
-	writer.WriteAt(mac, (out + int64(len(iv))))
+	sizeOfMac, err := writer.WriteAt(mac, int64(sizeOfName + sizeOfBody + sizeOfIv))
+	if err != nil {
+		return nil, err
+	}
 
-	return (out + int64(len(iv)) + int64(len(mac))), nil
+	// create file header
+	fhd := display.FileHeaderDisplay{
+		FileSize: (sizeOfIv + sizeOfBody + sizeOfName + sizeOfMac),
+		Salt: salt,
+	}
+
+	return &fhd, nil
 }
 
 func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byte, error) {
@@ -94,14 +117,14 @@ func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byt
 	return &data, nil
 }
 
-func encrypt(reader io.ReaderAt, writer io.WriterAt, stream cipher.Stream, h hash.Hash) (int64, error) {
-	var i int64 = 0;
-	var len int64 = 32000 // 32 kb
-	var total int64 = 0;
+func encrypt(reader io.ReaderAt, writer io.WriterAt, stream cipher.Stream, h hash.Hash) (int, error) {
+	var i int = 0;
+	var len int = 32000 // 32 kb
+	var total int = 0;
 
 	data := make([]byte, len)
 	for {
-		in, err := reader.ReadAt(data, (len * i))
+		in, err := reader.ReadAt(data, int64(len * i))
 		if err != nil && err != io.EOF { // if its an error other than EOF
 			return total, err
 		} else if err == io.EOF && in == 0 { // if EOF and no extra data we are done
@@ -114,7 +137,7 @@ func encrypt(reader io.ReaderAt, writer io.WriterAt, stream cipher.Stream, h has
 		stream.XORKeyStream(data, data)
 
 		// write to file
-		_, err = writer.WriteAt(data, (len*i))
+		_, err = writer.WriteAt(data, int64(len*i))
 		if err != nil {
 			return total, err
 		}
@@ -124,7 +147,7 @@ func encrypt(reader io.ReaderAt, writer io.WriterAt, stream cipher.Stream, h has
 		if err != nil {
 			return total, err
 		}
-		total += int64(out) // add up all written io so we know how large file is
+		total += out // add up all written io so we know how large file is
 		i++;
 	}
 	return  total, nil
