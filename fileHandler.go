@@ -2,10 +2,10 @@ package nafue
 
 import (
 	"errors"
-	"github.com/menkveldj/nafue-api/models/display"
 	"io"
 	"regexp"
 	"strconv"
+	"fmt"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
@@ -37,7 +37,7 @@ var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 //	return bytes.NewBuffer(fileBody.Content), fileBody.Name, nil
 //}
 
-func SealFile(file io.Reader, sealedFile io.Writer, size int64, name, pass string) error {
+func SealFile(file io.ReaderAt, sealedFile io.WriterAt, size int64, name, pass string) error {
 
 	// check file is under 50mb
 	if size > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
@@ -45,36 +45,18 @@ func SealFile(file io.Reader, sealedFile io.Writer, size int64, name, pass strin
 		return err
 	}
 
-	// create aData
-	aData, err := makeAData()
-	if err != nil {
-		 return err
-	}
-
-	// create salt
-	salt, err := makeSalt()
+	// encrypt to temp file
+	fileHeader, err := Encrypt(file, sealedFile, pass)
 	if err != nil {
 		return err
 	}
 
-	// create nonce
-	nonce, err := makeNonce()
-	if err != nil {
-		return err
-	}
+	fmt.Println("File Header: ", fileHeader)
 
-	// create file header and post
-	fileHeader := display.FileHeaderDisplay{
-		Salt: salt,
-		// Todo update IV to nonce once api and ui is updated
-		IV:    nonce,
-		AData: aData,
-	}
-
-	err = putFileHeader(C.API_FILE_URL, &fileHeader)
-	if err != nil {
-		return err
-	}
+	//err = putFileHeader(C.API_FILE_URL, &fileHeader)
+	//if err != nil {
+	//	return err
+	//}
 
 	//// create pbkdf2 key
 	//key := getPbkdf2(pass, salt)

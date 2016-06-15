@@ -9,6 +9,9 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"github.com/menkveldj/nafue/models"
+	"crypto/hmac"
+	"crypto/sha256"
+	"hash"
 )
 
 var ()
@@ -35,19 +38,45 @@ func Decrypt(fileHeader *display.FileHeaderDisplay, password string, secureData 
 	return &fileBody, nil
 }
 
-func Encrypt(reader io.Reader, key *[]byte, fileHeader *display.FileHeaderDisplay) (*[]byte, *display.FileHeaderDisplay, error) {
+func Encrypt(reader io.ReaderAt, writer io.WriterAt, password string) (int64, error) {
 
+	// make salt
+	salt, err := makeSalt();
+	if err != nil {
+		return 0, err
+	}
 
-	//// marshal data for encryption
-	//data, err := json.Marshal(*fileBodyPackage)
-	//if err != nil {
-	//	return nil, nil, err
-	//}
-	//
-	//// encrypt
-	//eData, err := encrypt(&data, aData, nonce, key)
-	//return eData, fileDisplay, nil
-	return nil, nil, nil
+	// make key with salt
+	key := getPbkdf2(password, salt)
+	block, err := aes.NewCipher(key)
+
+	// make iv
+	iv, err := makeIv(block.BlockSize())
+	if err != nil {
+		return 0, err
+	}
+
+	// create cipher stream
+	stream := cipher.NewCTR(block, iv)
+
+	// hash
+	h := hmac.New(sha256.New, key)
+
+	// do encryption
+	out, err := encrypt(reader, writer, stream, h)
+	if err != nil {
+		return 0, err
+	}
+
+	// append and hash iv
+	writer.WriteAt(iv, out)
+	h.Write(iv)
+
+	// get hash sum
+	mac := h.Sum(nil)
+	writer.WriteAt(mac, (out + int64(len(iv))))
+
+	return (out + int64(len(iv)) + int64(len(mac))), nil
 }
 
 func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byte, error) {
@@ -57,7 +86,6 @@ func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byt
 	if err != nil {
 		return nil, err
 	}
-
 	// decrypt
 	gcm, err := cipher.NewGCM(block)
 	data, err := gcm.Open(nil, nonce, *secureData, aData)
@@ -66,19 +94,40 @@ func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byt
 	return &data, nil
 }
 
-func encrypt(data *[]byte, aData []byte, nonce []byte, key []byte) (*[]byte, error) {
+func encrypt(reader io.ReaderAt, writer io.WriterAt, stream cipher.Stream, h hash.Hash) (int64, error) {
+	var i int64 = 0;
+	var len int64 = 32000 // 32 kb
+	var total int64 = 0;
 
-	//create cipher
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
+	data := make([]byte, len)
+	for {
+		in, err := reader.ReadAt(data, (len * i))
+		if err != nil && err != io.EOF { // if its an error other than EOF
+			return total, err
+		} else if err == io.EOF && in == 0 { // if EOF and no extra data we are done
+			return total, nil
+		} else { // if extra data handle it before exit
+			data = data[:in]
+		}
+
+		// do encryption
+		stream.XORKeyStream(data, data)
+
+		// write to file
+		_, err = writer.WriteAt(data, (len*i))
+		if err != nil {
+			return total, err
+		}
+
+		// add to hmac
+		out, err := h.Write(data)
+		if err != nil {
+			return total, err
+		}
+		total += int64(out) // add up all written io so we know how large file is
+		i++;
 	}
-
-	// encrypt
-	gcm, err := cipher.NewGCM(block)
-	secureData := gcm.Seal(nil, nonce, *data, aData)
-
-	return &secureData, nil
+	return  total, nil
 }
 
 func getPbkdf2(password string, salt []byte) []byte {
@@ -95,18 +144,10 @@ func makeSalt() ([]byte, error) {
 
 	return salt, nil
 }
-func makeNonce() ([]byte, error) {
-	nonce := make([]byte, 12)
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+func makeIv(blockSize int) ([]byte, error) {
+	iv := make([]byte, blockSize)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
 		return nil, err
 	}
-	return nonce, nil
-}
-
-func makeAData() ([]byte, error) {
-	aData := make([]byte, 12)
-	if _, err := io.ReadFull(rand.Reader, aData); err != nil {
-		return nil, err
-	}
-	return aData, nil
+	return iv, nil
 }
