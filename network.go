@@ -7,47 +7,48 @@ import (
 	"github.com/menkveldj/nafue-api/models/display"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"io"
+	"fmt"
 )
 
-type ErrorDisplay struct {
-	Message string `json:"message,omitempty"`
+func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
+	r, err := http.Get(url)
+	defer r.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	if r.StatusCode != 200 {
+		return nil, errors.New("GetFileHeader: Services responded with " + r.Status)
+	}
+
+	fileHeader := display.FileHeaderDisplay{}
+	err = json.NewDecoder(r.Body).Decode(&fileHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	return &fileHeader, nil
 }
 
-func getFileHeader(url string, target interface{}) error {
-	r, err := http.Get(url)
+func getFileBody(secureData io.ReadWriteSeeker, fileHeader *display.FileHeaderDisplay) error {
+
+	r, err := http.Get(fileHeader.DownloadUrl)
+	defer r.Body.Close()
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
-
-	if r.StatusCode != 200 {
-		errorDisplay := ErrorDisplay{}
-		err := json.NewDecoder(r.Body).Decode(&errorDisplay)
-		if err != nil {
-			return err
-		}
-		return errors.New(strconv.Itoa(r.StatusCode) + ", " + errorDisplay.Message)
+	if r.StatusCode != http.StatusOK {
+		return errors.New("GetFileBody: Services responded with " + r.Status)
 	}
-
-	return json.NewDecoder(r.Body).Decode(target)
-}
-
-func getFileBody(url string) (*[]byte, error) {
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
 
 	// read body
-	rBody, err := ioutil.ReadAll(resp.Body)
-	if (err != nil) {
-		return nil, err
+	_, err = io.Copy(secureData, r.Body)
+	if err != nil {
+		return err
 	}
-	return &rBody, nil
+
+	return nil
 }
 
 func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
@@ -63,13 +64,13 @@ func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 	// make client and do request
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("Services responded with " + resp.Status)
 	}
-	defer resp.Body.Close()
 
 	rBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -87,7 +88,7 @@ func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 func putFileBody(fileHeader *display.FileHeaderDisplay, secureData io.ReadWriteSeeker) error {
 
 	// set reader to start of file
-	_, err := secureData.Seek(0,0)
+	_, err := secureData.Seek(0, 0)
 	if err != nil {
 		return err
 	}
@@ -102,10 +103,10 @@ func putFileBody(fileHeader *display.FileHeaderDisplay, secureData io.ReadWriteS
 	// make client and do request
 	client := &http.Client{}
 	resp, err := client.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	//body, err := ioutil.ReadAll(resp.Body)
 	//if err != nil {
@@ -115,7 +116,6 @@ func putFileBody(fileHeader *display.FileHeaderDisplay, secureData io.ReadWriteS
 	if resp.StatusCode != http.StatusOK {
 		return errors.New("Services responded with " + resp.Status)
 	}
-
 
 	return nil
 }

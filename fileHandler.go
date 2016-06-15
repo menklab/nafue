@@ -7,39 +7,32 @@ import (
 	"strconv"
 	"os"
 	"crypto/sha256"
-	"github.com/menkveldj/nafue-api/models/display"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
 
-func UnSealFile(url string) (*[]byte, *display.FileHeaderDisplay, error) {
-//
-//	// get api url from share link
-//	aUrl := appifyUrl(url)
-//
-//	// dowload file header info
-//	var fileHeader = display.FileHeaderDisplay{}
-//	getFileHeader(aUrl, &fileHeader)
-//
-//	// dowload file body
-//	fileBody, err := getFileBody(fileHeader.DownloadUrl)
-//	if err != nil {
-//		return nil, nil, err
-//	}
-//	return fileBody, &fileHeader, nil
-	return nil, nil, nil
-}
-//
-//func TryDecrypt(body *[]byte, header *display.FileHeaderDisplay, pass string) (io.Reader, string, error) {
-//	fileBody, err := Decrypt(header, pass, body)
-//	if err != nil {
-//		return bytes.NewBufferString(""), "", err
-//	}
-//	return bytes.NewBuffer(fileBody.Content), fileBody.Name, nil
-//}
+func GetFile(url string, secureData io.ReadWriteSeeker) error {
 
-func SealFile(data io.ReaderAt, secureData io.ReadWriteSeeker, fileInfo os.FileInfo, name, pass string) (string, error) {
+	// get api url from share link
+	aUrl := appifyUrl(url)
+
+	// download file header info
+	fileHeader, err := getFileHeader(aUrl)
+	if err != nil {
+		return err
+	}
+
+	// download file body
+	err = getFileBody(secureData, fileHeader)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SealShareFile(data io.ReaderAt, secureData io.ReadWriteSeeker, fileInfo os.FileInfo, name, pass string) (string, error) {
 
 	// check file is under 50mb
 	if fileInfo.Size() > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
