@@ -7,20 +7,35 @@ import (
 	"github.com/menkveldj/nafue-api/models/display"
 	"golang.org/x/crypto/pbkdf2"
 	"io"
-	"github.com/menkveldj/nafue/models"
 	"crypto/hmac"
 	"crypto/sha256"
 	"hash"
 	"github.com/menkveldj/nafue/config"
+	"os"
 )
 
 var ()
 
-func Decrypt(reader io.ReaderAt, writer io.WriterAt, password string, fileHeader *display.FileHeaderDisplay) (*models.FileBody, error) {
+func Decrypt(secureData io.ReadWriteSeeker, password string , fileHeader *display.FileHeaderDisplay, fileInfo os.FileInfo) (error) {
 
-	//// get key
-	//key := getPbkdf2(password, fileHeader.Salt)
-	//
+	//get key
+	key := getPbkdf2(password, fileHeader.Salt)
+
+	// get mac from file
+	h := hmac.New(sha256.New, key)
+	io.CopyN(h, secureData, (fileInfo.Size() - sha256.Size))
+	mac1 := h.Sum(nil)
+
+	se
+
+
+	//block, err := aes.NewCipher(key)
+	//if err != nil {
+	//	return err
+	//}
+	// create cipher stream
+	//stream := cipher.NewCTR(block, fileHeader.)
+
 	//// decrypt
 	//data, dErr := decrypt(secureData,nil, nil, key)
 	//// if error decrypting return error
@@ -51,6 +66,9 @@ func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, p
 	// make key with salt
 	key := getPbkdf2(password, salt)
 	block, err := aes.NewCipher(key)
+	if err != nil {
+		return err
+	}
 
 	// make iv
 	iv, err := makeIv(block.BlockSize())

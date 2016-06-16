@@ -7,12 +7,13 @@ import (
 	"strconv"
 	"os"
 	"crypto/sha256"
+	"github.com/menkveldj/nafue-api/models/display"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
 
-func GetFile(url string, secureData io.ReadWriteSeeker) error {
+func GetFile(url string, secureData io.ReadWriteSeeker) (*display.FileHeaderDisplay, error) {
 
 	// get api url from share link
 	aUrl := appifyUrl(url)
@@ -20,11 +21,22 @@ func GetFile(url string, secureData io.ReadWriteSeeker) error {
 	// download file header info
 	fileHeader, err := getFileHeader(aUrl)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// download file body
 	err = getFileBody(secureData, fileHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	return fileHeader, nil
+}
+
+func UnsealFile (secureData io.ReadWriteSeeker, pass string, fileHeader *display.FileHeaderDisplay, fileInfo os.FileInfo) error {
+
+	// decrypt to file
+	err := Decrypt(secureData, pass, fileHeader, fileInfo)
 	if err != nil {
 		return err
 	}
@@ -52,7 +64,7 @@ func SealShareFile(data io.ReaderAt, secureData io.ReadWriteSeeker, fileInfo os.
 		return "", err
 	}
 
-	// create checksum
+	 //create checksum
 	checksum := sha256.New()
 	fileSize, err := io.Copy(checksum, secureData)
 	if err != nil {

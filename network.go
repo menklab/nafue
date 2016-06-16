@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"io"
-	"fmt"
 )
 
 func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
