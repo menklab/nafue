@@ -12,6 +12,7 @@ import (
 	"hash"
 	"github.com/menkveldj/nafue/config"
 	"os"
+	"fmt"
 )
 
 var ()
@@ -21,12 +22,28 @@ func Decrypt(secureData io.ReadWriteSeeker, password string , fileHeader *displa
 	//get key
 	key := getPbkdf2(password, fileHeader.Salt)
 
-	// get mac from file
+	// calculate mac1 from file
 	h := hmac.New(sha256.New, key)
-	io.CopyN(h, secureData, (fileInfo.Size() - sha256.Size))
-	mac1 := h.Sum(nil)
+	_, err := io.CopyN(h, secureData, ((fileInfo.Size() -1) - sha256.Size))
+	if err !=nil {
+		return err
+	}
+	fileMac := h.Sum(nil)
 
-	se
+	// get mac2 at end of file
+	secureData.Seek(-sha256.Size, 2)
+	//var mac2 []byte = new []byte(32)
+	expectedMac := make([]byte, sha256.Size, sha256.Size)
+	_, err = secureData.Read(expectedMac)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("fileMac len: ", fileMac)
+	fmt.Println("expectedMac len: ", expectedMac)
+	ok := hmac.Equal(fileMac, expectedMac)
+	fmt.Println("Macs Are Equal: ", ok)
+
 
 
 	//block, err := aes.NewCipher(key)
@@ -52,7 +69,7 @@ func Decrypt(secureData io.ReadWriteSeeker, password string , fileHeader *displa
 	//
 	//return &fileBody, nil
 
-	return nil, nil
+	return nil
 }
 
 func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, password string) (*display.FileHeaderDisplay, error) {
@@ -67,7 +84,7 @@ func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, p
 	key := getPbkdf2(password, salt)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// make iv
