@@ -9,7 +9,6 @@ import (
 	"io"
 	"crypto/hmac"
 	"crypto/sha256"
-	"hash"
 	"github.com/menkveldj/nafue/config"
 	"os"
 	"fmt"
@@ -31,30 +30,39 @@ func Decrypt(secureData io.ReadWriteSeeker, password string , fileHeader *displa
 	fileMac := h.Sum(nil)
 
 	// get mac2 at end of file
-	secureData.Seek(-sha256.Size, 2)
-	//var mac2 []byte = new []byte(32)
+	_, err = secureData.Seek(-sha256.Size, 2)
+	if err != nil {
+		return err
+	}
 	expectedMac := make([]byte, sha256.Size, sha256.Size)
 	_, err = secureData.Read(expectedMac)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("fileMac len: ", fileMac)
-	fmt.Println("expectedMac len: ", expectedMac)
-	ok := hmac.Equal(fileMac, expectedMac)
-	fmt.Println("Macs Are Equal: ", ok)
+	// verify hmac is good
+	if ok := hmac.Equal(fileMac, expectedMac); !ok {
+		return error.Error("Data couldn't be authenticated. Is the password entered correct?")
+	}
 
+	// get iv
+	iv := make([]byte, aes.BlockSize, aes.BlockSize)
+	eof, err := secureData.Seek(-(sha256.Size + aes.BlockSize), 2)
+	if err != nil {
+		return err
+	}
 
+	// use iv to make cipher block
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
 
-	//block, err := aes.NewCipher(key)
-	//if err != nil {
-	//	return err
-	//}
 	// create cipher stream
-	//stream := cipher.NewCTR(block, fileHeader.)
+	stream := cipher.NewCTR(block, iv)
 
-	//// decrypt
-	//data, dErr := decrypt(secureData,nil, nil, key)
+	// decrypt
+	//err = decrypt(secureData, stream, eof)
 	//// if error decrypting return error
 	//if dErr != nil {
 	//	return &models.FileBody{}, dErr
@@ -96,11 +104,8 @@ func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, p
 	// create cipher stream
 	stream := cipher.NewCTR(block, iv)
 
-	// hash & checksum
-	h := hmac.New(sha256.New, key)
-
 	// do encryption
-	_, err = encrypt(data, secureData, stream, h)
+	err = encrypt(data, secureData, stream)
 	if err != nil {
 		return nil, err
 	}
@@ -108,21 +113,21 @@ func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, p
 	// protect and hash filename
 	sfn := []byte(config.FILENAME_KEY_START + filename + config.FILENAME_KEY_END)
 	stream.XORKeyStream(sfn, sfn)
-	//writer.Seek(0, 2)
 	_, err = secureData.Write(sfn)
 	if err != nil {
 		return nil, err
 	}
-	h.Write(sfn)
 
-	// append and hash iv
+	// append iv
 	_, err = secureData.Write(iv)
 	if err != nil {
 		return nil, err
 	}
-	h.Write(iv)
 
 	// get hash sum
+	// hash & checksum
+	h := hmac.New(sha256.New, key)
+	io.Copy(h, secureData)
 	mac := h.Sum(nil)
 	_, err = secureData.Write(mac)
 	if err != nil {
@@ -152,18 +157,17 @@ func decrypt(secureData *[]byte, aData []byte, nonce []byte, key []byte) (*[]byt
 	return &data, nil
 }
 
-func encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, stream cipher.Stream, h hash.Hash ) (int, error) {
+func encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, stream cipher.Stream) (error) {
 	var i int = 0;
 	var len int = 32000 // 32 kb
-	var total int = 0;
 
 	chunk := make([]byte, len)
 	for {
 		in, err := data.ReadAt(chunk, int64(len * i))
 		if err != nil && err != io.EOF { // if its an error other than EOF
-			return total, err
+			return err
 		} else if err == io.EOF && in == 0 { // if EOF and no extra data we are done
-			return total, nil
+			return nil
 		} else { // if extra data handle it before exit
 			chunk = chunk[:in]
 		}
@@ -174,16 +178,12 @@ func encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, stream cipher.Stre
 		// write to file
 		_, err = secureData.Write(chunk)
 		if err != nil {
-			return total, err
+			return err
 		}
 
-		// add to hmac & md5
-		out, _ := h.Write(chunk)
-
-		total += out // add up all written io so we know how large file is
 		i++;
 	}
-	return  total, nil
+	return  nil
 }
 
 func getPbkdf2(password string, salt []byte) []byte {
