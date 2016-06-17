@@ -36,7 +36,7 @@ func GetFile(url string, secureData io.ReadWriteSeeker) (*display.FileHeaderDisp
 func UnsealFile (secureData io.ReadWriteSeeker, pass string, fileHeader *display.FileHeaderDisplay, fileInfo os.FileInfo) error {
 
 	// decrypt to file
-	err := Decrypt(secureData, pass, fileHeader, fileInfo)
+	err := Decrypt(secureData, pass, fileHeader)
 	if err != nil {
 		return err
 	}
