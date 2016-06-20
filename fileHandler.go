@@ -8,10 +8,13 @@ import (
 	"os"
 	"crypto/sha256"
 	"github.com/menkveldj/nafue-api/models/display"
+	"os/user"
+	"path/filepath"
+	"encoding/base64"
+	"crypto/rand"
 )
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
-
 
 func GetFile(url string, secureData io.ReadWriteSeeker) (*display.FileHeaderDisplay, error) {
 
@@ -33,7 +36,7 @@ func GetFile(url string, secureData io.ReadWriteSeeker) (*display.FileHeaderDisp
 	return fileHeader, nil
 }
 
-func UnsealFile (secureData io.ReadWriteSeeker, pass string, fileHeader *display.FileHeaderDisplay, fileInfo os.FileInfo) error {
+func UnsealFile(secureData io.ReadWriteSeeker, pass string, fileHeader *display.FileHeaderDisplay, fileInfo os.FileInfo) error {
 
 	// decrypt to file
 	err := Decrypt(secureData, pass, fileHeader)
@@ -44,51 +47,105 @@ func UnsealFile (secureData io.ReadWriteSeeker, pass string, fileHeader *display
 	return nil
 }
 
-func SealShareFile(data io.ReaderAt, secureData io.ReadWriteSeeker, fileInfo os.FileInfo, name, pass string) (string, error) {
+func SealShareFile(fileUri string, pass string) (string, error) {
+
+	file, err := os.Open(fileUri)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
 
 	// check file is under 50mb
-	if fileInfo.Size() > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
+	fstat, err := file.Stat()
+	if err != nil {
+		return"",  err
+	}
+	if fstat.Size() > (C.FILE_SIZE_LIMIT * 1024 * 1024) {
 		err := errors.New("File is larger than " + strconv.FormatInt(C.FILE_SIZE_LIMIT, 10) + "mb.")
 		return "", err
 	}
 
+	// create temp secure file
+	secureFile, err := createTempFile()
+	if err != nil {
+		return "", err
+	}
+
 	// encrypt to temp file
-	fileHeader, err := Encrypt(data, secureData, fileInfo.Name(), pass)
+	fileHeader, err := Encrypt(file, secureFile, pass)
 	if err != nil {
 		return "", err
 	}
 
-	// set reader to start of file
-	_, err = secureData.Seek(0,0)
-	if err != nil {
-		return "", err
-	}
-
-	 //create checksum
+	//create checksum
 	checksum := sha256.New()
-	fileSize, err := io.Copy(checksum, secureData)
+	_, err = io.Copy(checksum, secureFile)
 	if err != nil {
 		return "", nil
 	}
-	fileHeader.MD5Checksum = checksum.Sum(nil)
-	fileHeader.FileSize = fileSize
 
 	err = putFileHeader(C.API_FILE_URL, fileHeader)
 	if err != nil {
 		return "", errors.New("PutFileHeader: " + err.Error())
 	}
 
+
 	// post body data
-	err = putFileBody(fileHeader, secureData)
+	err = putFileBody(fileHeader, secureFile)
 	if err != nil {
 		return "", errors.New("PutFileBody: " + err.Error())
 	}
+
 
 	// provide share link
 	shareLink := C.SHARE_LINK + fileHeader.ShortUrl
 	return shareLink, nil
 }
 
+func createTempFile() (*os.File, error){
+	usr, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+	tmpDir := filepath.Join(usr.HomeDir, ".nafue")
+	err = os.MkdirAll(tmpDir, os.ModeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// random file
+	ran, err := generateRandomString(32)
+	if err != nil {
+		return nil, err
+	}
+
+	w, err := os.Create(filepath.Join(tmpDir, ran + ".enn"))
+	if err != nil {
+		return nil, err
+	}
+
+	return w, nil
+}
+
+func generateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	_, err := rand.Read(b)
+	// Note that err == nil only if we read len(b) bytes.
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func generateRandomString(s int) (string, error) {
+	b, err := generateRandomBytes(s)
+	if err != nil {
+		return "", err
+	}
+	code := base64.URLEncoding.EncodeToString(b)
+	return code[0:s], nil
+}
 //
 //func getFileContentsFromReader(reader io.Reader, size int64, name string) (*models.FileBody, error) {
 //

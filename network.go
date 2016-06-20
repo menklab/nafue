@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"io"
+	"os"
 )
 
 func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
@@ -84,28 +85,34 @@ func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 	return nil
 }
 
-func putFileBody(fileHeader *display.FileHeaderDisplay, secureData io.ReadWriteSeeker) error {
+func putFileBody(fileHeader *display.FileHeaderDisplay, secureFile *os.File) error {
 
-	// set reader to start of file
-	_, err := secureData.Seek(0, 0)
+	// make sure we read file form start
+	_,  err := secureFile.Seek(0,0)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("PUT", fileHeader.UploadUrl, secureData)
-	if (err != nil) {
+	req, err := http.NewRequest("PUT", fileHeader.UploadUrl, secureFile)
+	if err != nil {
 		return err
 	}
-	req.ContentLength = fileHeader.FileSize
+
+	// get file size
+	fStat, err := secureFile.Stat()
+	if err != nil {
+		return err
+	}
+	req.ContentLength = fStat.Size()
 	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
 
 	// make client and do request
 	client := &http.Client{}
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
 	//body, err := ioutil.ReadAll(resp.Body)
 	//if err != nil {

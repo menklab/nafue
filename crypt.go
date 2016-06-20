@@ -12,6 +12,7 @@ import (
 	"github.com/menkveldj/nafue/config"
 	"stash.cqlcorp.net/mp/moja-portal/utility/errors"
 	"fmt"
+	"os"
 )
 
 var ()
@@ -78,7 +79,7 @@ func Decrypt(secureData io.ReadWriteSeeker, password string, fileHeader *display
 	return nil
 }
 
-func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, password string) (*display.FileHeaderDisplay, error) {
+func Encrypt(data *os.File, secureData *os.File, password string) (*display.FileHeaderDisplay, error) {
 
 	// make salt
 	salt, err := makeSalt();
@@ -109,7 +110,7 @@ func Encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, filename string, p
 	}
 
 	// protect and hash filename
-	sfn := []byte(config.FILENAME_KEY_START + filename + config.FILENAME_KEY_END)
+	sfn := []byte(config.FILENAME_KEY_START + data.Name() + config.FILENAME_KEY_END)
 	stream.XORKeyStream(sfn, sfn)
 	_, err = secureData.Write(sfn)
 	if err != nil {
@@ -181,13 +182,13 @@ func decrypt(secureData io.ReadWriteSeeker, stream cipher.Stream, eof int64) err
 	return nil
 }
 
-func encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, stream cipher.Stream) error {
+func encrypt(file *os.File, secureFile *os.File, stream cipher.Stream) error {
 	var i int = 0;
 	var len int = 32000 // 32 kb
 
 	chunk := make([]byte, len)
 	for {
-		in, err := data.ReadAt(chunk, int64(len * i))
+		in, err := file.ReadAt(chunk, int64(len * i))
 		if err != nil && err != io.EOF {
 			// if its an error other than EOF
 			return err
@@ -203,7 +204,7 @@ func encrypt(data io.ReaderAt, secureData io.ReadWriteSeeker, stream cipher.Stre
 		stream.XORKeyStream(chunk, chunk)
 
 		// write to file
-		_, err = secureData.Write(chunk)
+		_, err = secureFile.WriteAt(chunk, int64(len * i))
 		if err != nil {
 			return err
 		}
