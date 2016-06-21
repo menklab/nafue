@@ -31,7 +31,7 @@ func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
 	return &fileHeader, nil
 }
 
-func getFileBody(secureData io.ReadWriteSeeker, fileHeader *display.FileHeaderDisplay) error {
+func getFileBody(secureFile *os.File, fileHeader *display.FileHeaderDisplay) error {
 
 	r, err := http.Get(fileHeader.DownloadUrl)
 	defer r.Body.Close()
@@ -43,7 +43,7 @@ func getFileBody(secureData io.ReadWriteSeeker, fileHeader *display.FileHeaderDi
 	}
 
 	// read body
-	_, err = io.Copy(secureData, r.Body)
+	_, err = io.Copy(secureFile, r.Body)
 	if err != nil {
 		return err
 	}

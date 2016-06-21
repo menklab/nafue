@@ -16,35 +16,49 @@ import (
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
-func GetFile(url string, secureData io.ReadWriteSeeker) (*display.FileHeaderDisplay, error) {
+func GetFile(url string) (*display.FileHeaderDisplay, string, error) {
 
 	// get api url from share link
 	aUrl := appifyUrl(url)
 
+	// create temp file
+	secureFile, err := createTempFile()
+	if err != nil {
+		return nil, "", err
+	}
+
 	// download file header info
 	fileHeader, err := getFileHeader(aUrl)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// download file body
-	err = getFileBody(secureData, fileHeader)
+	err = getFileBody(secureFile, fileHeader)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return fileHeader, nil
+	return fileHeader, secureFile.Name(), nil
 }
 
-func UnsealFile(secureData io.ReadWriteSeeker, pass string, fileHeader *display.FileHeaderDisplay, fileInfo os.FileInfo) error {
+func UnsealFile(secureFileUri string, pass string, fileHeader *display.FileHeaderDisplay) (string, error) {
 
-	// decrypt to file
-	err := Decrypt(secureData, pass, fileHeader)
+	// open file for writing
+	secureFile, err := os.OpenFile(secureFileUri, os.O_RDWR, 0777)
 	if err != nil {
-		return err
+		return "", nil
 	}
 
-	return nil
+	// decrypt to file
+	fileName, err := Decrypt(secureFile, pass, fileHeader)
+	if err != nil {
+		return "", err
+	}
+
+	// move file into place
+
+	return fileName, nil
 }
 
 func SealShareFile(fileUri string, pass string) (string, error) {
@@ -96,6 +110,11 @@ func SealShareFile(fileUri string, pass string) (string, error) {
 		return "", errors.New("PutFileBody: " + err.Error())
 	}
 
+	// delete temp file
+	err = os.Remove(secureFile.Name())
+	if err != nil {
+		return "", err
+	}
 
 	// provide share link
 	shareLink := C.SHARE_LINK + fileHeader.ShortUrl

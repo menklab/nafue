@@ -25,6 +25,7 @@ type Config struct {
 	API_URL         string
 	API_FILE_URL    string
 	HASH_TYPE       func() hash.Hash
+	BUFFER_SIZE	int64
 }
 
 // get production configuration for lib
@@ -42,6 +43,7 @@ func Production() Config {
 		FILE_SIZE_LIMIT: 50, // 50 mb
 		NAFUE_TEMP_FILE: ".tmp.nafue",
 		HASH_TYPE: sha1.New,
+		BUFFER_SIZE: 3200,
 	}
 	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
 	c.API_FILE_URL = c.API_URL + "/files";
@@ -62,6 +64,7 @@ func Development() Config {
 		FILE_SIZE_LIMIT: 50, // 50 mb
 		NAFUE_TEMP_FILE: ".tmp.nafue",
 		HASH_TYPE: sha1.New,
+		BUFFER_SIZE: 3200,
 	}
 	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
 	c.API_FILE_URL = c.API_URL + "/files";
@@ -82,6 +85,7 @@ func Local() Config {
 		FILE_SIZE_LIMIT: 50, // 50 mb
 		NAFUE_TEMP_FILE: ".tmp.nafue",
 		HASH_TYPE: sha1.New,
+		BUFFER_SIZE: 3200,
 	}
 	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
 	c.API_FILE_URL = c.API_URL + "/files";

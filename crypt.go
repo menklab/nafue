@@ -15,71 +15,59 @@ import (
 	"os"
 )
 
-var ()
+var C_DECRYPT_UNAUTHENTICATED error = errors.New("Data couldn't be authenticated. Is the password entered correct?")
 
-func Decrypt(secureData io.ReadWriteSeeker, password string, fileHeader *display.FileHeaderDisplay) (error) {
+func Decrypt(secureFile *os.File, password string, fileHeader *display.FileHeaderDisplay) (string, error) {
 
 	//get key
 	key := getPbkdf2(password, fileHeader.Salt)
 
+	// start at start of file
+	_, err := secureFile.Seek(0,0)
+	if err != nil {
+		return "", nil
+	}
+
 	// calculate mac1 from file
 	h := hmac.New(sha256.New, key)
-	_, err := io.Copy(h, secureData)
+	fileSize, err := io.Copy(h, secureFile)
 	if err != nil {
-		return err
+		return "", err
 	}
 	fileMac := h.Sum(nil)
 
-	// get mac2 at end of file
-	_, err = secureData.Seek(-sha256.Size, 2)
-	if err != nil {
-		return err
-	}
-
 	// verify hmac is good
 	if ok := hmac.Equal(fileMac, fileHeader.Hmac); !ok {
-		return errors.New("Data couldn't be authenticated. Is the password entered correct?")
+		return "", C_DECRYPT_UNAUTHENTICATED
 	}
 
 	// get iv
 	iv := make([]byte, aes.BlockSize, aes.BlockSize)
-	eof, err := secureData.Seek(-aes.BlockSize, 2)
+	fileSize -= aes.BlockSize // actual file doesn't contain iv
+	_, err = secureFile.ReadAt(iv, fileSize)
 	if err != nil {
-		return err
-	}
-	_, err = secureData.Read(iv)
-	if err != nil {
-		return err
+		return "", err
 	}
 
 	// use iv to make cipher block
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// create cipher stream
 	stream := cipher.NewCTR(block, iv)
 
 	// decrypt
-	err = decrypt(secureData, stream, eof)
+	err = decrypt(secureFile, stream, fileSize)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	// use data to create a fileBody
-	//var fileBody = models.FileBody{}
-	//err := json.Unmarshal(*data, &fileBody)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//return &fileBody, nil
-
-	return nil
+	return "filename", nil
 }
 
-func Encrypt(data *os.File, secureData *os.File, password string) (*display.FileHeaderDisplay, error) {
+func Encrypt(file *os.File, secureFile *os.File, password string) (*display.FileHeaderDisplay, error) {
 
 	// make salt
 	salt, err := makeSalt();
@@ -104,29 +92,32 @@ func Encrypt(data *os.File, secureData *os.File, password string) (*display.File
 	stream := cipher.NewCTR(block, iv)
 
 	// do encryption
-	err = encrypt(data, secureData, stream)
+	err = encrypt(file, secureFile, stream)
 	if err != nil {
 		return nil, err
 	}
 
 	// protect and hash filename
-	sfn := []byte(config.FILENAME_KEY_START + data.Name() + config.FILENAME_KEY_END)
+	sfn := []byte(config.FILENAME_KEY_START + file.Name() + config.FILENAME_KEY_END)
 	stream.XORKeyStream(sfn, sfn)
-	_, err = secureData.Write(sfn)
+	_, err = secureFile.Write(sfn)
 	if err != nil {
 		return nil, err
 	}
 
 	// append iv
-	_, err = secureData.Write(iv)
+	_, err = secureFile.Write(iv)
 	if err != nil {
 		return nil, err
 	}
 
 	// get hash sum
-	// hash & checksum
 	h := hmac.New(sha256.New, key)
-	io.Copy(h, secureData)
+	_, err = secureFile.Seek(0,0)	// start at start of file
+	if err != nil {
+		return nil, err
+	}
+	io.Copy(h, secureFile)
 	mac := h.Sum(nil)
 
 	// create file header
@@ -138,14 +129,9 @@ func Encrypt(data *os.File, secureData *os.File, password string) (*display.File
 	return &fhd, nil
 }
 
-func decrypt(secureData io.ReadWriteSeeker, stream cipher.Stream, eof int64) error {
-	var length int64 = 32000 // 32 kb
+func decrypt(secureData *os.File, stream cipher.Stream, eof int64) error {
 
-	// start of file
-	if _, err := secureData.Seek(0,0); err != nil {
-		return err
-	}
-	chunk := make([]byte, length)
+	chunk := make([]byte, C.BUFFER_SIZE)
 	// loop through file and decrypt
 	for {
 		fmt.Println("bytes left: ", eof)
@@ -154,12 +140,13 @@ func decrypt(secureData io.ReadWriteSeeker, stream cipher.Stream, eof int64) err
 			return nil
 		}
 		// if less bytes than chunk; shrink chunk
-		if eof < length {
+		if eof < C.BUFFER_SIZE {
 			chunk = make([]byte, eof)
 		}
 
 		// read chunk
-		in, err := secureData.Read(chunk)
+		readStart := eof - int64(len(chunk))
+		_, err := secureData.ReadAt(chunk, readStart)
 		if err != nil {
 			return err
 		}
@@ -169,26 +156,22 @@ func decrypt(secureData io.ReadWriteSeeker, stream cipher.Stream, eof int64) err
 		stream.XORKeyStream(chunk, chunk)
 		fmt.Println("decrypted: ", chunk[:10])
 		// write back to file
-		if _, err = secureData.Seek(int64(-in),1); err != nil {
-			return err
-		}
-		if _, err = secureData.Write(chunk); err != nil {
+		if _, err = secureData.WriteAt(chunk, readStart); err != nil {
 			return err
 		}
 
 		// reduce remaining bytes by amount read
-		eof -= int64(in);
+		eof -= int64(len(chunk));
 	}
 	return nil
 }
 
 func encrypt(file *os.File, secureFile *os.File, stream cipher.Stream) error {
-	var i int = 0;
-	var len int = 32000 // 32 kb
+	var i int64 = 0;
 
-	chunk := make([]byte, len)
+	chunk := make([]byte, C.BUFFER_SIZE)
 	for {
-		in, err := file.ReadAt(chunk, int64(len * i))
+		in, err := file.ReadAt(chunk, int64(C.BUFFER_SIZE * i))
 		if err != nil && err != io.EOF {
 			// if its an error other than EOF
 			return err
@@ -204,7 +187,7 @@ func encrypt(file *os.File, secureFile *os.File, stream cipher.Stream) error {
 		stream.XORKeyStream(chunk, chunk)
 
 		// write to file
-		_, err = secureFile.WriteAt(chunk, int64(len * i))
+		_, err = secureFile.WriteAt(chunk, int64(C.BUFFER_SIZE * i))
 		if err != nil {
 			return err
 		}
