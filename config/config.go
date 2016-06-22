@@ -11,21 +11,22 @@ const FILENAME_KEY_START string = "#STARTFILENAME'"
 const FILENAME_KEY_END string = "'ENDFILENAME#"
 
 type Config struct {
-	API_PROTOCOL    string
-	API_HOST        string
-	API_PORT        string
-	API_BASE        string
-	TEMP_DIR        string
-	SHARE_LINK      string
-	ITERATIONS      int
-	KEY_LENGTH      int
-	SALT_LENGTH     int64
-	FILE_SIZE_LIMIT int64
-	NAFUE_TEMP_FILE string
-	API_URL         string
-	API_FILE_URL    string
-	HASH_TYPE       func() hash.Hash
-	BUFFER_SIZE	int64
+	API_PROTOCOL        string
+	API_HOST            string
+	API_PORT            string
+	API_BASE            string
+	TEMP_DIR            string
+	SHARE_LINK          string
+	ITERATIONS          int
+	KEY_LENGTH          int
+	SALT_LENGTH         int64
+	FILE_SIZE_LIMIT     int64
+	NAFUE_TEMP_FILE     string
+	API_URL             string
+	API_FILE_URL        string
+	HASH_TYPE           func() hash.Hash
+	BUFFER_SIZE         int64
+	MAX_FILENAME_LENGTH int64
 }
 
 // get production configuration for lib
@@ -44,6 +45,7 @@ func Production() Config {
 		NAFUE_TEMP_FILE: ".tmp.nafue",
 		HASH_TYPE: sha1.New,
 		BUFFER_SIZE: 3200,
+		MAX_FILENAME_LENGTH: 255,
 	}
 	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
 	c.API_FILE_URL = c.API_URL + "/files";
@@ -65,6 +67,7 @@ func Development() Config {
 		NAFUE_TEMP_FILE: ".tmp.nafue",
 		HASH_TYPE: sha1.New,
 		BUFFER_SIZE: 3200,
+		MAX_FILENAME_LENGTH: 255,
 	}
 	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
 	c.API_FILE_URL = c.API_URL + "/files";
@@ -86,6 +89,7 @@ func Local() Config {
 		NAFUE_TEMP_FILE: ".tmp.nafue",
 		HASH_TYPE: sha1.New,
 		BUFFER_SIZE: 3200,
+		MAX_FILENAME_LENGTH: 255,
 	}
 	c.API_URL = c.API_PROTOCOL + "://" + c.API_HOST + ":" + c.API_PORT + "/" + c.API_BASE;
 	c.API_FILE_URL = c.API_URL + "/files";

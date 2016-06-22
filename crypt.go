@@ -9,13 +9,13 @@ import (
 	"io"
 	"crypto/hmac"
 	"crypto/sha256"
-	"github.com/menkveldj/nafue/config"
 	"stash.cqlcorp.net/mp/moja-portal/utility/errors"
-	"fmt"
 	"os"
+	"path"
 )
 
 var C_DECRYPT_UNAUTHENTICATED error = errors.New("Data couldn't be authenticated. Is the password entered correct?")
+var padding byte = []byte("!")[0]
 
 func Decrypt(secureFile *os.File, password string, fileHeader *display.FileHeaderDisplay) (string, error) {
 
@@ -23,7 +23,7 @@ func Decrypt(secureFile *os.File, password string, fileHeader *display.FileHeade
 	key := getPbkdf2(password, fileHeader.Salt)
 
 	// start at start of file
-	_, err := secureFile.Seek(0,0)
+	_, err := secureFile.Seek(0, 0)
 	if err != nil {
 		return "", nil
 	}
@@ -59,12 +59,36 @@ func Decrypt(secureFile *os.File, password string, fileHeader *display.FileHeade
 	stream := cipher.NewCTR(block, iv)
 
 	// decrypt
-	err = decrypt(secureFile, stream, fileSize)
+	err = XORKeyStreamBuffered(secureFile, secureFile, stream)
 	if err != nil {
 		return "", err
 	}
 
-	return "filename", nil
+	//truncate iv
+	if err = os.Truncate(secureFile.Name(), fileSize); err != nil {
+		return "", err
+	}
+
+	// get filename
+	//read last C.MAX_FILENAME_LENGTH from file
+	paddedFileName := make([]byte, C.MAX_FILENAME_LENGTH)
+	_, err = secureFile.ReadAt(paddedFileName, (fileSize - C.MAX_FILENAME_LENGTH))
+	if err != nil {
+		return "", err
+	}
+	eofn := firstIndex(paddedFileName, make([]byte, 1)[0])
+	if eofn == -1 {
+		return "", errors.New("Bad filename enclosed in file.")
+	}
+	fileName := string(paddedFileName[:eofn])
+	fileSize -= C.MAX_FILENAME_LENGTH
+
+	// truncate filename so file is as original
+	if err = os.Truncate(secureFile.Name(), fileSize); err != nil {
+		return "", err
+	}
+
+	return fileName, nil
 }
 
 func Encrypt(file *os.File, secureFile *os.File, password string) (*display.FileHeaderDisplay, error) {
@@ -92,28 +116,39 @@ func Encrypt(file *os.File, secureFile *os.File, password string) (*display.File
 	stream := cipher.NewCTR(block, iv)
 
 	// do encryption
-	err = encrypt(file, secureFile, stream)
+	err = XORKeyStreamBuffered(file, secureFile, stream)
 	if err != nil {
 		return nil, err
 	}
 
-	// protect and hash filename
-	sfn := []byte(config.FILENAME_KEY_START + file.Name() + config.FILENAME_KEY_END)
-	stream.XORKeyStream(sfn, sfn)
-	_, err = secureFile.Write(sfn)
+	// seek to end
+	if _, err = secureFile.Seek(0, 2); err != nil {
+		return nil, err
+	}
+
+	// protect filename
+	paddedFileName := make([]byte, C.MAX_FILENAME_LENGTH)
+	fileName := []byte(path.Base(file.Name()))
+	if int64(len(fileName)) > C.MAX_FILENAME_LENGTH {
+		return nil, errors.New("Filename must be less than or equal to 225 chars.")
+	}
+	copy(paddedFileName, fileName)
+	stream.XORKeyStream(paddedFileName, paddedFileName)
+
+	_, err = secureFile.Write(paddedFileName)
 	if err != nil {
 		return nil, err
 	}
+
 
 	// append iv
 	_, err = secureFile.Write(iv)
 	if err != nil {
 		return nil, err
 	}
-
 	// get hash sum
 	h := hmac.New(sha256.New, key)
-	_, err = secureFile.Seek(0,0)	// start at start of file
+	_, err = secureFile.Seek(0, 0)        // start at start of file
 	if err != nil {
 		return nil, err
 	}
@@ -129,44 +164,7 @@ func Encrypt(file *os.File, secureFile *os.File, password string) (*display.File
 	return &fhd, nil
 }
 
-func decrypt(secureData *os.File, stream cipher.Stream, eof int64) error {
-
-	chunk := make([]byte, C.BUFFER_SIZE)
-	// loop through file and decrypt
-	for {
-		fmt.Println("bytes left: ", eof)
-		// if no more bytes; finish.
-		if eof <= 0 {
-			return nil
-		}
-		// if less bytes than chunk; shrink chunk
-		if eof < C.BUFFER_SIZE {
-			chunk = make([]byte, eof)
-		}
-
-		// read chunk
-		readStart := eof - int64(len(chunk))
-		_, err := secureData.ReadAt(chunk, readStart)
-		if err != nil {
-			return err
-		}
-
-		// decrypt
-		fmt.Println("encrypted: ", chunk[:10])
-		stream.XORKeyStream(chunk, chunk)
-		fmt.Println("decrypted: ", chunk[:10])
-		// write back to file
-		if _, err = secureData.WriteAt(chunk, readStart); err != nil {
-			return err
-		}
-
-		// reduce remaining bytes by amount read
-		eof -= int64(len(chunk));
-	}
-	return nil
-}
-
-func encrypt(file *os.File, secureFile *os.File, stream cipher.Stream) error {
+func XORKeyStreamBuffered(file *os.File, secureFile *os.File, stream cipher.Stream) error {
 	var i int64 = 0;
 
 	chunk := make([]byte, C.BUFFER_SIZE)
@@ -217,4 +215,14 @@ func makeIv(blockSize int) ([]byte, error) {
 		return nil, err
 	}
 	return iv, nil
+
+}
+
+func firstIndex(s []byte, e byte) int {
+	for i, _ := range s {
+		if s[i] == e {
+			return i
+		}
+	}
+	return -1
 }
