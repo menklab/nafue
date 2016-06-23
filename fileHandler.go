@@ -14,6 +14,7 @@ import (
 	"crypto/rand"
 )
 
+
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
 func GetFile(url string) (*display.FileHeaderDisplay, string, error) {
@@ -26,39 +27,53 @@ func GetFile(url string) (*display.FileHeaderDisplay, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	defer secureFile.Close()
 
 	// download file header info
 	fileHeader, err := getFileHeader(aUrl)
 	if err != nil {
+		os.Remove(secureFile.Name())
 		return nil, "", err
 	}
 
 	// download file body
 	err = getFileBody(secureFile, fileHeader)
 	if err != nil {
+		os.Remove(secureFile.Name())
 		return nil, "", err
 	}
 
 	return fileHeader, secureFile.Name(), nil
 }
 
-func UnsealFile(secureFileUri string, pass string, fileHeader *display.FileHeaderDisplay) (string, error) {
+func UnsealFile(secureFileUri string, pass string, fileHeader *display.FileHeaderDisplay, pathToSave string) (string, error) {
 
 	// open file for writing
 	secureFile, err := os.OpenFile(secureFileUri, os.O_RDWR, 0777)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
+	defer secureFile.Close()
 
 	// decrypt to file
 	fileName, err := Decrypt(secureFile, pass, fileHeader)
 	if err != nil {
+		if err != C_DECRYPT_UNAUTHENTICATED {
+			os.Remove(secureFile.Name())
+		}
 		return "", err
 	}
 
 	// move file into place
+	fp := filepath.Join(pathToSave, fileName)
+	fileUri := filepath.Clean(fp)
+	err = os.Rename(secureFileUri, fileUri)
+	if err != nil {
+		os.Remove(secureFile.Name())
+		return "", err
+	}
 
-	return fileName, nil
+	return fileUri, nil
 }
 
 func SealShareFile(fileUri string, pass string) (string, error) {
