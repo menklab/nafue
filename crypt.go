@@ -4,20 +4,20 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"github.com/menkveldj/nafue-api/models/display"
+	"github.com/menkveldj/nafue-api/models"
 	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"crypto/hmac"
 	"crypto/sha256"
-	"stash.cqlcorp.net/mp/moja-portal/utility/errors"
 	"os"
 	"path"
+	"github.com/menkveldj/nafue-api/utility/errors"
 )
 
 var C_DECRYPT_UNAUTHENTICATED error = errors.New("Data couldn't be authenticated. Is the password entered correct?")
 var padding byte = []byte("!")[0]
 
-func Decrypt(secureFile *os.File, password string, fileHeader *display.FileHeaderDisplay) (string, error) {
+func Decrypt(secureFile *os.File, password string, fileHeader *models.FileHeader) (string, error) {
 
 	//get key
 	key := getPbkdf2(password, fileHeader.Salt)
@@ -91,7 +91,7 @@ func Decrypt(secureFile *os.File, password string, fileHeader *display.FileHeade
 	return fileName, nil
 }
 
-func Encrypt(file *os.File, secureFile *os.File, password string) (*display.FileHeaderDisplay, error) {
+func Encrypt(file *os.File, secureFile *os.File, password string) (*models.FileHeader, error) {
 
 	// make salt
 	salt, err := makeSalt();
@@ -156,7 +156,7 @@ func Encrypt(file *os.File, secureFile *os.File, password string) (*display.File
 	mac := h.Sum(nil)
 
 	// create file header
-	fhd := display.FileHeaderDisplay{
+	fhd := models.FileHeader{
 		Salt: salt,
 		Hmac: mac,
 	}

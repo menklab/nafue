@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"os"
 	"crypto/sha256"
-	"github.com/menkveldj/nafue-api/models/display"
+	"github.com/menkveldj/nafue-api/models"
 	"os/user"
 	"path/filepath"
 	"encoding/base64"
@@ -17,7 +17,7 @@ import (
 
 var fileIdRegex = regexp.MustCompile(`^.*file/(.*)$`)
 
-func GetFile(url string) (*display.FileHeaderDisplay, string, error) {
+func GetFile(url string) (*models.FileHeader, string, error) {
 
 	// get api url from share link
 	aUrl := appifyUrl(url)
@@ -46,7 +46,7 @@ func GetFile(url string) (*display.FileHeaderDisplay, string, error) {
 	return fileHeader, secureFile.Name(), nil
 }
 
-func UnsealFile(secureFileUri string, pass string, fileHeader *display.FileHeaderDisplay, pathToSave string) (string, error) {
+func UnsealFile(secureFileUri string, pass string, fileHeader *models.FileHeader, pathToSave string) (string, error) {
 
 	// open file for writing
 	secureFile, err := os.OpenFile(secureFileUri, os.O_RDWR, 0777)

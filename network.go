@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/menkveldj/nafue-api/models/display"
+	"github.com/menkveldj/nafue-api/models"
 	"io/ioutil"
 	"net/http"
 	"io"
 	"os"
 )
 
-func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
+func getFileHeader(url string) (*models.FileHeader, error) {
 	r, err := http.Get(url)
 	defer r.Body.Close()
 	if err != nil {
@@ -22,7 +22,7 @@ func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
 		return nil, errors.New("GetFileHeader: Services responded with " + r.Status)
 	}
 
-	fileHeader := display.FileHeaderDisplay{}
+	fileHeader := models.FileHeader{}
 	err = json.NewDecoder(r.Body).Decode(&fileHeader)
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func getFileHeader(url string) (*display.FileHeaderDisplay, error) {
 	return &fileHeader, nil
 }
 
-func getFileBody(secureFile *os.File, fileHeader *display.FileHeaderDisplay) error {
+func getFileBody(secureFile *os.File, fileHeader *models.FileHeader) error {
 
 	r, err := http.Get(fileHeader.DownloadUrl)
 	defer r.Body.Close()
@@ -51,7 +51,7 @@ func getFileBody(secureFile *os.File, fileHeader *display.FileHeaderDisplay) err
 	return nil
 }
 
-func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
+func putFileHeader(url string, fileHeader *models.FileHeader) error {
 	// create json body
 	body, err := json.Marshal(&fileHeader)
 
@@ -85,7 +85,7 @@ func putFileHeader(url string, fileHeader *display.FileHeaderDisplay) error {
 	return nil
 }
 
-func putFileBody(fileHeader *display.FileHeaderDisplay, secureFile *os.File) error {
+func putFileBody(fileHeader *models.FileHeader, secureFile *os.File) error {
 
 	// make sure we read file form start
 	_,  err := secureFile.Seek(0,0)
