@@ -1,0 +1,19 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "1MGpGDQqnUoRpv7VEcQrXOBydXE=",
+			"path": "golang.org/x/crypto/pbkdf2",
+			"revision": "b6789ab629056511030d652d851e7dc10c9e9c9e",
+			"revisionTime": "2016-05-04T15:20:23Z"
+		},
+		{
+			"checksumSHA1": "N5fb5y92DFIP+wUhi1rSwPp9vyk=",
+			"path": "golang.org/x/crypto/ssh/terminal",
+			"revision": "b6789ab629056511030d652d851e7dc10c9e9c9e",
+			"revisionTime": "2016-05-04T15:20:23Z"
+		}
+	],
+	"rootPath": "github.com/menkveldj/nafue"
+}
