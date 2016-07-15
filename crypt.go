@@ -130,7 +130,7 @@ func Encrypt(file *os.File, secureFile *os.File, password string) (*models.FileH
 	paddedFileName := make([]byte, C.MAX_FILENAME_LENGTH)
 	fileName := []byte(path.Base(file.Name()))
 	if int64(len(fileName)) > C.MAX_FILENAME_LENGTH {
-		return nil, errors.New("Filename must be less than or equal to 225 chars.")
+		return nil, errors.New("Filename must be less than or equal to 255 chars.")
 	}
 	copy(paddedFileName, fileName)
 	stream.XORKeyStream(paddedFileName, paddedFileName)
